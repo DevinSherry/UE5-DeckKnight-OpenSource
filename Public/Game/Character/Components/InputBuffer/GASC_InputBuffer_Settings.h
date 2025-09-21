@@ -27,9 +27,42 @@ class GASCOURSE_API UGASC_InputBuffer_Settings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
-	
+	/**
+	 * BufferedInputActions
+	 *
+	 * Represents a collection of input actions that are designated as buffered actions
+	 * for the GAS Course Input Buffer system. These input actions are stored as soft
+	 * object references to manage asset loading efficiently without causing runtime blockage.
+	 *
+	 * Configuration properties:
+	 * - Category: Input Buffer Actions.
+	 * - Directory Path: /Game/GASCourse/Game/Character/Input/Actions/
+	 * - Allows configuration in the Game.ini file.
+	 *
+	 * Accessibility:
+	 * - Configurable in both C++ and Blueprints.
+	 * - Editable across various project editing contexts.
+	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Input Buffer Actions", meta=(AssetDir="/Game/GASCourse/Game/Character/Input/Actions/"))
 	TArray<TSoftObjectPtr<UInputAction>> BufferedInputActions;
+
+	/**
+	 * MovementInputAction
+	 *
+	 * Represents a specific input action associated with character movement in the GAS Course Input Buffer system.
+	 * This variable is stored as a soft object pointer to manage asset loading efficiently and prevent runtime delays.
+	 *
+	 * Configuration properties:
+	 * - Category: Input Buffer Actions.
+	 * - Directory Path: /Game/GASCourse/Game/Character/Input/Actions/.
+	 * - Defined in the configuration file: Game.ini.
+	 *
+	 * Accessibility:
+	 * - Configurable in both C++ and Blueprints.
+	 * - Editable in applicable contexts through the Unreal Engine editor.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Input Buffer Actions", meta=(AssetDir="/Game/GASCourse/Game/Character/Input/Actions/"))
+	TSoftObjectPtr<UInputAction> MovementInputAction;
 	
 	UGASC_InputBuffer_Settings();
 	

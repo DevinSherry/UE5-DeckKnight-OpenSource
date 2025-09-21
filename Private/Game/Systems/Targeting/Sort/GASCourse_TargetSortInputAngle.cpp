@@ -4,6 +4,7 @@
 #include "Game/Systems/Targeting/Sort/GASCourse_TargetSortInputAngle.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Engine/LocalPlayer.h"
+#include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "Kismet/KismetTextLibrary.h"
 
 namespace GASCourse_TargetingSystemCVars
@@ -28,9 +29,30 @@ void UGASCourse_TargetSortInputAngle::Init(const FTargetingRequestHandle& Target
 
 	if(SourcePawn)
 	{
+		FVector CharacterInputDirection = FVector::ZeroVector;
+		if (SourcePawn->GetLastMovementInputVector().GetSafeNormal().IsNearlyZero())
+		{
+			if (UGASC_InputBufferComponent* InputBuffer = SourcePawn->FindComponentByClass<UGASC_InputBufferComponent>())
+			{
+				if (InputBuffer->GetMovementInputAxisValue().GetSafeNormal().IsNearlyZero())
+				{
+					CharacterInputDirection = SourcePawn->GetActorForwardVector().GetSafeNormal();
+				}
+				else
+				{
+					FVector2D MovementInputVector2D = InputBuffer->GetMovementInputAxisValue();
+					CharacterInputDirection = FVector(MovementInputVector2D.Y, MovementInputVector2D.X, 0.0f);
+				}
+			}
+		}
+		else
+		{
+			CharacterInputDirection = SourcePawn->GetLastMovementInputVector().GetSafeNormal();
+		}
+
 		FRotator Delta = UKismetMathLibrary::NormalizedDeltaRotator(SourcePawn->GetActorRotation(), SourcePawn->GetControlRotation());
 		Delta.Pitch = 0.0f;
-		InputDirection = Delta.UnrotateVector(SourcePawn->GetLastMovementInputVector());
+		InputDirection = Delta.UnrotateVector(CharacterInputDirection);
 
 #if !UE_BUILD_SHIPPING
 		if(GASCourse_TargetingSystemCVars::bEnableInputTargetingDebug)

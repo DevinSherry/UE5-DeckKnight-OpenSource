@@ -67,31 +67,30 @@ public:
 	virtual void PostAttributeBaseChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) const override;
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 public:
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes", ReplicatedUsing=OnRep_CurrentHealth)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData CurrentHealth;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, CurrentHealth)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes", ReplicatedUsing=OnRep_MaxHealth)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, MaxHealth)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes", ReplicatedUsing=OnRep_StatusDamageHealingCoefficient)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData StatusDamageHealingCoefficient;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes", ReplicatedUsing=OnRep_ElementalDamageHealingCoefficient)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData ElementalDamageHealingCoefficient;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient)
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes", ReplicatedUsing=OnRep_PhysicalDamageHealingCoefficient)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData PhysicalDamageHealingCoefficient;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, PhysicalDamageHealingCoefficient)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes", ReplicatedUsing=OnRep_AllDamageHealingCoefficient)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData AllDamageHealingCoefficient;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, AllDamageHealingCoefficient)
 
@@ -99,42 +98,16 @@ public:
 	FGameplayAttributeData IncomingDamage;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, IncomingDamage)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Damage", ReplicatedUsing=OnRep_CriticalChance)
+	UPROPERTY(BlueprintReadOnly, Category = "Damage")
 	FGameplayAttributeData CriticalChance = 0.0f;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, CriticalChance)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Damage", ReplicatedUsing=OnRep_CriticalDamageMultiplier)
+	UPROPERTY(BlueprintReadOnly, Category = "Damage")
 	FGameplayAttributeData CriticalDamageMultiplier = 0.0f;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, CriticalDamageMultiplier)
 
 	UPROPERTY(BlueprintReadOnly, Category = "Healing")
 	FGameplayAttributeData IncomingHealing;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, IncomingHealing)
-	
-protected:
-	
-	UFUNCTION()
-	virtual void OnRep_CurrentHealth(const FGameplayAttributeData& OldCurrentHealth);
-	
-	UFUNCTION()
-	virtual void OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth);
-
-	UFUNCTION()
-	virtual void OnRep_StatusDamageHealingCoefficient(const FGameplayAttributeData& OldStatusDamageHealingCoefficient);
-
-	UFUNCTION()
-	virtual void OnRep_ElementalDamageHealingCoefficient(const FGameplayAttributeData& OldElementalDamageHealingCoefficient);
-	
-	UFUNCTION()
-	virtual void OnRep_PhysicalDamageHealingCoefficient(const FGameplayAttributeData& OldPhysicalDamageHealingCoefficient);
-
-	UFUNCTION()
-	virtual void OnRep_AllDamageHealingCoefficient(const FGameplayAttributeData& OldAllDamageHealingCoefficient);
-
-	UFUNCTION()
-	virtual void OnRep_CriticalChance(const FGameplayAttributeData& OldCriticalChance);
-
-	UFUNCTION()
-	virtual void OnRep_CriticalDamageMultiplier(const FGameplayAttributeData& OldCriticalDamageMultiplier);
 	
 };

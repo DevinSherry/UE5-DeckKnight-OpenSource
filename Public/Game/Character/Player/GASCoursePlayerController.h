@@ -50,6 +50,7 @@ public:
 	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
 
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 
 	UFUNCTION(BlueprintCallable, Category = "GASCourse|PlayerController")
 	void OnDamageDealtCallback(const FGameplayEventData& Payload);

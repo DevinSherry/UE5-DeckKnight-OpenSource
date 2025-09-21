@@ -28,7 +28,7 @@ public:
 
 	// Tag used to process input for the ability.
 	UPROPERTY(EditDefaultsOnly, Meta = (Categories = "InputTag"))
-	FGameplayTag InputTag;
+	mutable FGameplayTag InputTag;
 	
 };
 
@@ -135,5 +135,9 @@ public:
 	// Attribute sets to grant when this ability set is granted.
 	UPROPERTY(EditDefaultsOnly, Category = "Attribute Sets", meta=(TitleProperty=AttributeSet))
 	TArray<FGASCourseAbilitySet_AttributeSet> GrantedAttributes;
+
+private:
+
+	bool IsActiveAbilitySlotAvailable(UGASCourseAbilitySystemComponent* ASC, FGameplayTag& AvailableSlotTag) const;
 	
 };

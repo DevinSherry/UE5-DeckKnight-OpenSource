@@ -8,6 +8,7 @@
 #include "GameplayEffect.h"
 #include "GameplayEffectTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 
 DEFINE_LOG_CATEGORY(LOG_GASC_GameplayAbility);
 
@@ -139,6 +140,16 @@ void UGASCourseGameplayAbility::OnGiveAbility(const FGameplayAbilityActorInfo* A
 	Super::OnGiveAbility(ActorInfo, Spec);
 	K2_OnAbilityAdded();
 	TryActivateAbilityOnSpawn(ActorInfo, Spec);
+
+	if (GetAbilitySlotType() == EGASCourseAbilitySlotType::PrimarySlot)
+	{
+		FGameplayEventData OnAbilityGranted;
+		OnAbilityGranted.EventTag = Event_Gameplay_OnAbilityGranted;
+		OnAbilityGranted.Instigator = GetAvatarActorFromActorInfo();
+		OnAbilityGranted.Target = GetAvatarActorFromActorInfo();
+		OnAbilityGranted.OptionalObject = this;
+		GetAbilitySystemComponentFromActorInfo()->HandleGameplayEvent(Event_Gameplay_OnAbilityGranted, &OnAbilityGranted);
+	}
 }
 
 void UGASCourseGameplayAbility::OnRemoveAbility(const FGameplayAbilityActorInfo* ActorInfo,
@@ -168,6 +179,7 @@ void UGASCourseGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 		CommitAbility(Handle, ActorInfo, ActivationInfo);
 	}
 	
+	CachedInputDirection = GetInputDirection();
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
 }
 
@@ -492,12 +504,30 @@ FVector UGASCourseGameplayAbility::GetInputDirection() const
 	*GetPathNameSafe(this));
 		return FVector::ZeroVector;
 	}
+
+	UGASC_InputBufferComponent* InputBufferComponent = Cast<UGASC_InputBufferComponent>(GetAvatarActorFromActorInfo()->GetComponentByClass<UGASC_InputBufferComponent>());
+	if (!InputBufferComponent)
+	{
+		if (CharacterMovementComponent->GetLastInputVector().GetSafeNormal().IsNearlyZero())
+		{
+			UE_LOG(LOG_GASC_GameplayAbility, Log, TEXT("Input Vector Nearly 0.0f %s. Returning owning character forward direction instead."),
+				*GetPathNameSafe(this));
+			return FVector::ZeroVector;
+		}
+	}
+
+	FVector2D BufferedMovementInput = InputBufferComponent->GetMovementInputAxisValue();
 	if (CharacterMovementComponent->GetLastInputVector().GetSafeNormal().IsNearlyZero())
 	{
-		UE_LOG(LOG_GASC_GameplayAbility, Log, TEXT("Input Vector Nearly 0.0f %s. Returning owning character forward direction instead."),
-			*GetPathNameSafe(this));
-		return OwningPlayerCharacter->GetActorForwardVector().GetSafeNormal();
+		if (BufferedMovementInput.IsNearlyZero())
+		{
+			return FVector::ZeroVector;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("GAMEPLAY ABILITY: Buffered Movement Input: %s"), *BufferedMovementInput.ToString())
+		FVector MovementVector = FVector(BufferedMovementInput.Y, BufferedMovementInput.X, 0.0f);
+		return GetControllerFromActorInfo()->GetControlRotation().RotateVector(MovementVector).GetSafeNormal();
 	}
+	
 	return CharacterMovementComponent->GetLastInputVector().GetSafeNormal();
 }
 

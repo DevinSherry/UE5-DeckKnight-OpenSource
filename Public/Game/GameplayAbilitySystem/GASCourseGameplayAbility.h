@@ -144,6 +144,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "GASCourse|Ability|Cost")
 	FScalableFloat GetAbilityCost() const { return AbilityCost; }
 
+	/**
+	 * GetInputDirection
+	 *
+	 * Retrieves the input direction.
+	 *
+	 * @param bReturnActorForward If true, returns the actor's forward direction when no input is detected. Otherwise, return zero vector.
+	 * @return The vector representing the input direction.
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "GASCourse|Ability|Input", Meta = (DisplayName = "Get Input Direction"))
 	virtual FVector GetInputDirection() const;
 
@@ -269,5 +277,13 @@ protected:
 	 */
 	UFUNCTION()
 	void InvokeAbilityFailHapticFeedback() const;
+
+	/**
+	 * CachedInputDirection
+	 *
+	 * Stores the last known input direction as a FVector.
+	 */
+	UPROPERTY(BlueprintReadOnly, Transient, Category="GASCourse|Ability|Input")
+	FVector CachedInputDirection = FVector::ZeroVector;
 	
 };

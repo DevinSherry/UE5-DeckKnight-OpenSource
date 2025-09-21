@@ -8,10 +8,10 @@
 #include "GASCourseAbilitySystemComponent.generated.h"
 
 /**
- * 
+ * An interface for proxying replication within the Unreal Gameplay Ability System.
+ * This interface is used to facilitate custom replication handling within the context
+ * of the ability system in Unreal Engine.
  */
-
-
 
 UINTERFACE(meta = (CannotImplementInterfaceInBlueprint))
 class GASCOURSE_API UGCAbilitySystemReplicationProxyInterface : public UAbilitySystemReplicationProxyInterface
@@ -85,7 +85,7 @@ public:
 
 	void WaitForAbilityCooldownEnd(UGameplayAbility* InAbility, const FActiveGameplayEffectHandle InCooldownActiveGEHandle);
 
-	UFUNCTION(BlueprintPure)
+	UFUNCTION(BlueprintPure, meta=(GameplayTagFilter="Input.NativeAction.Ability"))
 	TSubclassOf<UGameplayAbility> GetAbilityFromTaggedInput(FGameplayTag InputTag);
 
 protected:

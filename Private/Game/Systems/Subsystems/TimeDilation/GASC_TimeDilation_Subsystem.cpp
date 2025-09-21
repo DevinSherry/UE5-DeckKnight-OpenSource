@@ -279,16 +279,18 @@ void UGASC_TimeDilation_Subsystem::ProcessLocalHitStops(float DeltaTime)
 
 		if (ActiveLocalTimeDilation->bUseTimeDilationCurve)
 		{
-			if (ActiveLocalTimeDilation->CustomTimeDilationCurve)
+			if (ActiveLocalTimeDilation->CustomTimeDilationCurve && ActiveLocalTimeDilation->TimeDilationDuration > 0.0f)
 			{
 				const TArray<FRichCurveKey>& Keys = ActiveLocalTimeDilation->CustomTimeDilationCurve->FloatCurve.GetConstRefOfKeys();
 				if (Keys.Num() > 0)
 				{
-					ActiveLocalTimeDilation->TimeDilationDuration = Keys.Last().Time;
+					ActiveLocalTimeDilation->TimeDilationDuration =
+						ActiveLocalTimeDilation->TimeDilationDuration < 0.0f ? ActiveLocalTimeDilation->TimeDilationDuration : Keys.Last().Time;
 				}
 			}
 
-			float CurveAlpha = ActiveLocalTimeDilation->ElapsedTime / ActiveLocalTimeDilation->TimeDilationDuration;
+			float CurrentLocalTimeDilation = ActiveLocalTimeDilation->TimeDilationDuration < 0.0f ? 1.0f : ActiveLocalTimeDilation->TimeDilation;
+			float CurveAlpha = ActiveLocalTimeDilation->ElapsedTime / CurrentLocalTimeDilation;
 			float CurveValue = FAlphaBlend::AlphaToBlendOption(CurveAlpha, ActiveLocalTimeDilation->BlendMode, ActiveLocalTimeDilation->CustomTimeDilationCurve);
 
 			CurveValue = FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f), FVector2D(ActiveLocalTimeDilation->TimeDilation, 1.0f), CurveValue);
@@ -313,7 +315,7 @@ void UGASC_TimeDilation_Subsystem::ProcessLocalHitStops(float DeltaTime)
 		}
 		
 		ActiveLocalTimeDilation->ElapsedTime += UnscaledDeltaTime;
-		if (ActiveLocalTimeDilation->ElapsedTime >= ActiveLocalTimeDilation->TimeDilationDuration)
+		if (ActiveLocalTimeDilation->ElapsedTime >= ActiveLocalTimeDilation->TimeDilationDuration && ActiveLocalTimeDilation->TimeDilationDuration > 0.0f)
 		{
 			for (AActor* AffectedActor : ActiveLocalTimeDilation->AffectedActors)
 			{
@@ -352,14 +354,23 @@ void UGASC_TimeDilation_Subsystem::ProcessGlobalHitStops(float DeltaTime)
 		{
 			if (ActiveGlobalTimeDilation->CustomTimeDilationCurve)
 			{
-				const TArray<FRichCurveKey>& Keys = ActiveGlobalTimeDilation->CustomTimeDilationCurve->FloatCurve.GetConstRefOfKeys();
+				TArray<FRichCurveKey>& Keys = ActiveGlobalTimeDilation->CustomTimeDilationCurve->FloatCurve.Keys;
 				if (Keys.Num() > 0)
 				{
-					ActiveGlobalTimeDilation->TimeDilationDuration = Keys.Last().Time;
+					if (ActiveGlobalTimeDilation->TimeDilationDuration > 0.0f)
+					{
+						Keys.Last().Time = ActiveGlobalTimeDilation->TimeDilationDuration;
+					}
+					else
+					{
+						ActiveGlobalTimeDilation->TimeDilationDuration =
+								ActiveGlobalTimeDilation->TimeDilationDuration < 0.0f ? ActiveGlobalTimeDilation->TimeDilationDuration : Keys.Last().Time;
+					}
 				}
 			}
 
-			float CurveAlpha = ActiveGlobalTimeDilation->ElapsedTime / ActiveGlobalTimeDilation->TimeDilationDuration;
+			float CurrentGlobalTimeDilation = ActiveGlobalTimeDilation->TimeDilationDuration < 0.0f ? 1.0f : ActiveGlobalTimeDilation->TimeDilationDuration;
+			float CurveAlpha = ActiveGlobalTimeDilation->ElapsedTime / CurrentGlobalTimeDilation;
 			float CurveValue = FAlphaBlend::AlphaToBlendOption(CurveAlpha, ActiveGlobalTimeDilation->BlendMode, ActiveGlobalTimeDilation->CustomTimeDilationCurve);
 
 			CurveValue = FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f), FVector2D(ActiveGlobalTimeDilation->TimeDilation, 1.0f), CurveValue);
@@ -371,7 +382,7 @@ void UGASC_TimeDilation_Subsystem::ProcessGlobalHitStops(float DeltaTime)
 		}
 		
 		ActiveGlobalTimeDilation->ElapsedTime += UnscaledDeltaTime;
-		if (ActiveGlobalTimeDilation->ElapsedTime >= ActiveGlobalTimeDilation->TimeDilationDuration)
+		if (ActiveGlobalTimeDilation->ElapsedTime >= ActiveGlobalTimeDilation->TimeDilationDuration && ActiveGlobalTimeDilation->TimeDilationDuration > 0.0f)
 		{
 			UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
 			

@@ -8,6 +8,7 @@
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "Components/StateTreeComponent.h"
+#include "Game/Systems/CardEnergy/ActiveCardEnergy/GASC_ActiveCardResourceManager.h"
 #include "Kismet/GameplayStatics.h"
 
 AGASCoursePlayerController::AGASCoursePlayerController(const FObjectInitializer& ObjectInitializer)
@@ -83,6 +84,20 @@ void AGASCoursePlayerController::OnPossess(APawn* InPawn)
 	{
 		InitializeStateTree();
 		PlayerStateTreeComponent->StartLogic();
+	}
+
+	if (UGASC_ActiveCardResourceManager* ActiveCardResourceManager = GetLocalPlayer()->GetSubsystem<UGASC_ActiveCardResourceManager>())
+	{
+		ActiveCardResourceManager->RegisterPlayer(this);
+	}
+}
+
+void AGASCoursePlayerController::OnUnPossess()
+{
+	Super::OnUnPossess();
+	if (UGASC_ActiveCardResourceManager* ActiveCardResourceManager = GetLocalPlayer()->GetSubsystem<UGASC_ActiveCardResourceManager>())
+	{
+		ActiveCardResourceManager->UnRegisterPlayer(this);
 	}
 }
 

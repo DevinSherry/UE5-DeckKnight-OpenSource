@@ -36,6 +36,8 @@ public:
 	virtual void InitializeComponent() override;
 
 	void LoadInputActionsFromSettings();
+
+	void LoadMovementInputActionFromSettings();
 	
 	/**
 	 * OpenInputBuffer method is a BlueprintNativeEvent and BlueprintCallable function that is used to open the input buffer.
@@ -115,7 +117,17 @@ public:
 		return BufferedInputActions;
 	}
 
-protected:
+	/**
+	 * GetMovementInputAxisValue retrieves the current value of the specified input axis used for movement.
+	 * This method is typically used to query player input for controlling character movement along a specific axis.
+	 *
+	 * @return The current axis value representing player movement input, typically ranging from -1.0 to 1.0.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Input Buffer")
+	FVector2D GetMovementInputAxisValue();
+
+
+protected: 
 	// Called when the game starts
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -154,4 +166,13 @@ private:
 	UEnhancedInputComponent* EnhancedInputComponent = nullptr;
 	
 	TArray<const FEnhancedInputActionEventBinding*> Bindings;
+
+	UPROPERTY()
+	UInputAction* MovementInputAction;
+
+	UPROPERTY()
+	FVector2D MovementInputAxis;
+
+	UPROPERTY()
+	FVector2D BufferedMovementInputAxis;
 };

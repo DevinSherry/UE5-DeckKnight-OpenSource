@@ -2,11 +2,13 @@
 
 
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseHealthAttributeSet.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemGlobals.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GameplayEffectExtension.h"
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "GASCourse/GASCourseCharacter.h"
-#include "Net/UnrealNetwork.h"
+#include "Game/Systems/CardEnergy/GASCourseCardEnergyExecution.h"
 
 UGASCourseHealthAttributeSet::UGASCourseHealthAttributeSet()
 {
@@ -79,11 +81,25 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	AActor* TargetActor = nullptr;
 	AController* TargetController = nullptr;
 	AGASCourseCharacter* TargetCharacter = nullptr;
+	UAbilitySystemComponent* TargetAbilitySystemComponent = nullptr;
+
+	AActor* SourceActor = nullptr;
+	AGASCourseCharacter* SourceCharacter = nullptr;
+	UAbilitySystemComponent* SourceAbilitySystemComponent = nullptr;
+	
 	if (Data.Target.AbilityActorInfo.IsValid() && Data.Target.AbilityActorInfo->AvatarActor.IsValid())
 	{
 		TargetActor = Data.Target.AbilityActorInfo->AvatarActor.Get();
 		TargetController = Data.Target.AbilityActorInfo->PlayerController.Get();
 		TargetCharacter = Cast<AGASCourseCharacter>(TargetActor);
+		TargetAbilitySystemComponent = TargetCharacter->GetAbilitySystemComponent();
+	}
+
+	if (Data.EffectSpec.GetContext().IsValid() && Data.EffectSpec.GetContext().GetInstigator() && Data.EffectSpec.GetContext().GetInstigatorAbilitySystemComponent())
+	{
+		SourceActor = Data.EffectSpec.GetContext().GetInstigator();
+		SourceCharacter = Cast<AGASCourseCharacter>(SourceActor);
+		SourceAbilitySystemComponent = Data.EffectSpec.GetContext().GetInstigatorAbilitySystemComponent();
 	}
 
 	if(Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
@@ -100,13 +116,37 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	
 		if(NewHealth <= 0.0f && bIsAlive)
 		{
+			TargetCharacter->SetCharacterDead(true);
+			
 			FGameplayEventData OnDeathPayload;
 			OnDeathPayload.EventTag = Event_OnDeath;
 			OnDeathPayload.Instigator = Data.EffectSpec.GetContext().GetOriginalInstigator();
+			
+			FGameplayTagContainer TargetTags;
+			TargetAbilitySystemComponent->GetOwnedGameplayTags(TargetTags);
+			OnDeathPayload.TargetTags = TargetTags;
+
+			FGameplayTagContainer SourceTags;
+			SourceAbilitySystemComponent->GetOwnedGameplayTags(SourceTags);
+			OnDeathPayload.InstigatorTags = SourceTags;
+			
 			OnDeathPayload.Target = GetOwningActor();
 			OnDeathPayload.ContextHandle = Data.EffectSpec.GetContext();
 			OnDeathPayload.EventMagnitude = LocalDamage;
-			GetOwningAbilitySystemComponent()->HandleGameplayEvent(Event_OnDeath, &OnDeathPayload);
+			TargetAbilitySystemComponent->HandleGameplayEvent(Event_OnDeath, &OnDeathPayload);
+			SourceAbilitySystemComponent->HandleGameplayEvent(Event_OnDeathDealt, &OnDeathPayload);
+			
+
+			TSubclassOf<UGameplayEffectExecutionCalculation> CardResourceExecutionClass;
+			if (AbilitySystemSettings)
+			{
+				CardResourceExecutionClass = AbilitySystemSettings->CardResourceExecution;
+				if (!CardResourceExecutionClass)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Health Calculation is not valid!"));
+					return;
+				}
+			}
 		}
 	}
 	//Passive Healing Event
@@ -114,8 +154,9 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	{
 		const float LocalIncomingHealing = GetIncomingHealing();
 		SetIncomingHealing(0.0f);
+		
 		float NewCurrentHealth = GetCurrentHealth() + LocalIncomingHealing;
-		SetCurrentHealth(NewCurrentHealth);
+		SetCurrentHealth(FMath::Clamp(NewCurrentHealth, 0.0f, GetMaxHealth()));
 
 		FGameplayEventData OnHealingPayload;
 		OnHealingPayload.EventTag = Event_Gameplay_OnHealing;
@@ -123,68 +164,11 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 		OnHealingPayload.Target = GetOwningActor();
 		OnHealingPayload.ContextHandle = Data.EffectSpec.GetContext();
 		OnHealingPayload.EventMagnitude = LocalIncomingHealing;
-		GetOwningAbilitySystemComponent()->HandleGameplayEvent(Event_Gameplay_OnHealing, &OnHealingPayload);
+		TargetAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnHealing, &OnHealingPayload);
 	}
 
 	if (Data.EvaluatedData.Attribute == GetCurrentHealthAttribute())
 	{
 		SetCurrentHealth(FMath::Clamp(GetCurrentHealth(), 0.0f, GetMaxHealth()));
 	}
-}
-
-void UGASCourseHealthAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, CurrentHealth, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, MaxHealth, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, PhysicalDamageHealingCoefficient, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, AllDamageHealingCoefficient, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, CriticalChance, COND_None, REPNOTIFY_Always);
-	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseHealthAttributeSet, CriticalDamageMultiplier, COND_None, REPNOTIFY_Always);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_CurrentHealth(const FGameplayAttributeData& OldCurrentHealth)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, CurrentHealth, OldCurrentHealth);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_MaxHealth(const FGameplayAttributeData& OldMaxHealth)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, MaxHealth, OldMaxHealth);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_StatusDamageHealingCoefficient(const FGameplayAttributeData& OldDamageOverTimeHealingCoefficient)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient, OldDamageOverTimeHealingCoefficient);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_ElementalDamageHealingCoefficient(
-	const FGameplayAttributeData& OldElementalDamageHealingCoefficient)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient, OldElementalDamageHealingCoefficient);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_PhysicalDamageHealingCoefficient(
-	const FGameplayAttributeData& OldPhysicalDamageHealingCoefficient)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, PhysicalDamageHealingCoefficient, OldPhysicalDamageHealingCoefficient);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_AllDamageHealingCoefficient(
-	const FGameplayAttributeData& OldAllDamageHealingCoefficient)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, AllDamageHealingCoefficient, OldAllDamageHealingCoefficient);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_CriticalChance(const FGameplayAttributeData& OldCriticalChance)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, CriticalChance, OldCriticalChance);
-}
-
-void UGASCourseHealthAttributeSet::OnRep_CriticalDamageMultiplier(
-	const FGameplayAttributeData& OldCriticalDamageMultiplier)
-{
-	GAMEPLAYATTRIBUTE_REPNOTIFY(UGASCourseHealthAttributeSet, CriticalDamageMultiplier, OldCriticalDamageMultiplier);
 }

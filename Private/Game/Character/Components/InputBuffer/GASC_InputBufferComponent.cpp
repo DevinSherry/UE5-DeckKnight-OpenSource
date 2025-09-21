@@ -13,7 +13,6 @@
 #include "GASCourse/GASCourseCharacter.h"
 
 DEFINE_LOG_CATEGORY(LOG_GASC_InputBufferComponent);
-
 static FString INPUT_BUFFER_COMPONENT_NAME;
 
 // Sets default values for this component's properties
@@ -33,35 +32,67 @@ void UGASC_InputBufferComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 	InputBufferSettings = GetDefault<UGASC_InputBuffer_Settings>();
-	if (!InputBufferSettings || InputBufferSettings->BufferedInputActions.IsEmpty())
+	if (!InputBufferSettings)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("InputBufferSettings is null!"));
 		return;
 	}
 
-	TArray<FSoftObjectPath> AssetPaths;
-	for (const TSoftObjectPtr<UInputAction>& SoftPtr : InputBufferSettings->BufferedInputActions)
+	if(!InputBufferSettings->BufferedInputActions.IsEmpty())
 	{
-		if (!SoftPtr.IsValid())
+		TArray<FSoftObjectPath> AssetPaths;
+		for (const TSoftObjectPtr<UInputAction>& SoftPtr : InputBufferSettings->BufferedInputActions)
 		{
-			AssetPaths.Add(SoftPtr.ToSoftObjectPath());
+			if (!SoftPtr.IsValid())
+			{
+				AssetPaths.Add(SoftPtr.ToSoftObjectPath());
+			}
+			else
+			{
+				// Already loaded
+				InputActionsToConsume.Add(SoftPtr.Get());
+			}
 		}
-		else
+
+		// Bulk load all objects at once
+		FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
+
+		if (AssetPaths.Num() > 0)
 		{
-			// Already loaded
-			InputActionsToConsume.Add(SoftPtr.Get());
+			Streamable.RequestAsyncLoad(
+				AssetPaths,
+				FStreamableDelegate::CreateUObject(this, &UGASC_InputBufferComponent::LoadInputActionsFromSettings)
+			);
 		}
 	}
 
-	// Bulk load all objects at once
-	FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
-
-	if (AssetPaths.Num() > 0)
+	if (InputBufferSettings->MovementInputAction)
 	{
-		Streamable.RequestAsyncLoad(
-			AssetPaths,
-			FStreamableDelegate::CreateUObject(this, &UGASC_InputBufferComponent::LoadInputActionsFromSettings)
-		);
+		FSoftObjectPath AssetPath;
+		if (const TSoftObjectPtr<UInputAction>& SoftPtr = InputBufferSettings->MovementInputAction)
+		{
+			if (!SoftPtr.IsValid())
+			{
+				AssetPath = SoftPtr.ToSoftObjectPath();
+			}
+			else
+			{
+				MovementInputAction = SoftPtr.Get();
+			}
+		}
+
+		// Bulk load all objects at once
+		FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
+
+		if (AssetPath.IsValid())
+		{
+			Streamable.RequestAsyncLoad(
+				AssetPath,
+				FStreamableDelegate::CreateUObject(this, &UGASC_InputBufferComponent::LoadInputActionsFromSettings)
+			);
+		}
 	}
+
 }
 
 void UGASC_InputBufferComponent::LoadInputActionsFromSettings()
@@ -88,6 +119,21 @@ void UGASC_InputBufferComponent::LoadInputActionsFromSettings()
 
 	// You can now use LoadedInputActions
 	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("All input actions loaded (%d total)."), InputActionsToConsume.Num());
+}
+
+void UGASC_InputBufferComponent::LoadMovementInputActionFromSettings()
+{
+	InputBufferSettings = GetDefault<UGASC_InputBuffer_Settings>();
+	if (!InputBufferSettings)
+	{
+		return;
+	}
+
+	const TSoftObjectPtr<UInputAction>& SoftPtr = InputBufferSettings->MovementInputAction;
+	MovementInputAction = SoftPtr.Get();
+
+	// You can now use MovementInputAction
+	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Movement Input Action available!"));
 }
 
 void UGASC_InputBufferComponent::OpenInputBuffer_Implementation()
@@ -142,6 +188,7 @@ void UGASC_InputBufferComponent::AddInputActionToBuffer(UInputAction* InAction)
 		UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Action Added to Buffer: %s, %s"),
 		*InAction->GetName(), *INPUT_BUFFER_COMPONENT_NAME);
 		BufferedInputActions.AddUnique(InAction);
+		BufferedMovementInputAxis = MovementInputAxis;
 	}
 }
 
@@ -183,6 +230,16 @@ void UGASC_InputBufferComponent::ListenToInputActions()
 			Bindings.Add(TriggeredEventBinding);
 		}
 	}
+
+	if (MovementInputAction)
+	{
+		const FEnhancedInputActionEventBinding* TriggeredEventBinding = &EnhancedInputComponent->BindActionValueLambda(MovementInputAction, ETriggerEvent::Triggered, [this](const FInputActionValue& Value)
+		{
+			MovementInputAxis = Value.Get<FVector2D>();
+		});
+
+		Bindings.Add(TriggeredEventBinding);
+	}
 }
 
 void UGASC_InputBufferComponent::SimulateInputAction(const UInputAction* InputAction) const
@@ -204,6 +261,15 @@ void UGASC_InputBufferComponent::SimulateInputAction(const UInputAction* InputAc
 	}
 }
 
+FVector2D UGASC_InputBufferComponent::GetMovementInputAxisValue()
+{
+	//TODO: Fix this, not properly returning right value
+	FVector2D MovementInputAxisValue = BufferedMovementInputAxis;
+	UE_LOG(LogTemp, Warning, TEXT("INPUT BUFFER: Buffered Movement Input: %s"), *MovementInputAxisValue.ToString())
+	BufferedMovementInputAxis = FVector2D::ZeroVector;
+	return MovementInputAxisValue;
+}
+
 // Called when the game starts
 void UGASC_InputBufferComponent::BeginPlay()
 {
@@ -211,6 +277,7 @@ void UGASC_InputBufferComponent::BeginPlay()
 
 	// ...
 	ListenToInputActions();
+
 }
 
 void UGASC_InputBufferComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)

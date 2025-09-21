@@ -130,7 +130,8 @@ public:
 	 * If an active global time dilation exists and the new effect has a higher priority,
 	 * the new effect replaces the existing one. Otherwise, it is added to the queue to be processed later.
 	 *
-	 * @param TimeDilationDuration The duration, in seconds, for which the time dilation effect will be applied.
+	 * @param TimeDilationDuration The duration of the hit stop effect in seconds. If -1.0f, the duration will be infinite. A value of 0 will mean that we want to use
+	 * the custom curve dilation duration. Any value above 0.0f will mean we want to override the duration.
 	 * @param TimeDilationMinValue The minimum time dilation value to apply. A value less than 1 slows time, greater than 1 speeds it up.
 	 * @param AlphaBlendOption Specifies the blending mode to transition into the time dilation effect. Example: Linear or Cubic.
 	 * @param Curve A float curve defining the progression of time dilation over the specified duration. If null, a constant time dilation is applied.
@@ -147,7 +148,8 @@ public:
 	 * blending options, priority and optionally affected actors. If an active local time dilation is already present,
 	 * this method will override it if the priority of the new configuration is higher.
 	 *
-	 * @param TimeDilationDuration The duration, in seconds, for which the time dilation effect should be applied.
+	 * @param TimeDilationDuration The duration of the hit stop effect in seconds. If -1.0f, the duration will be infinite. A value of 0 will mean that we want to use
+	 * the custom curve dilation duration. Any value above 0.0f will mean we want to override the duration.
 	 * @param TimeDilationMinValue The minimum time dilation value for the effect. Lower values slow time down further.
 	 * @param AlphaBlendOption The blending mode used to interpolate the time dilation effect over its duration.
 	 * @param Curve An optional float curve that defines how the time dilation progresses over its duration.

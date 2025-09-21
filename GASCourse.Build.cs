@@ -11,9 +11,9 @@ public class GASCourse : ModuleRules
 		SetupIrisSupport(Target);
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         
-		PrivateDependencyModuleNames.AddRange(new[] { "AIModule", "UMG", "Slate", "NetCore", "MotionWarping", "StateTreeModule", "GameplayStateTreeModule" });
+		PrivateDependencyModuleNames.AddRange(new[] { "AIModule", "UMG", "Slate", "NetCore", "MotionWarping", "StateTreeModule", "GameplayStateTreeModule", "AITestSuite" });
 		PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore", "PhysicsCore","EnhancedInput", "TargetingSystem", "GameplayAbilities", 
-			"GameplayTasks", "GameplayTags", "ModelViewViewModel", "Niagara", "StateTreeModule"
+			"GameplayTasks", "GameplayTags", "ModelViewViewModel", "Niagara", "StateTreeModule", "ImGui"
 		});
         
 		if (Target.Type == TargetType.Editor)

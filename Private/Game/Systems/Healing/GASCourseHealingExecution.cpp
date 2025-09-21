@@ -130,8 +130,8 @@ void UGASCourseHealingExecution::Execute_Implementation(const FGameplayEffectCus
 		if (TargetAbilitySystemComponent && CurrentHealth != MaxHealth)
 		{
 			FGameplayEventData LifeStealDealtPayload;
-			LifeStealDealtPayload.Instigator = SourceAbilitySystemComponent->GetAvatarActor();
-			LifeStealDealtPayload.Target = TargetAbilitySystemComponent->GetAvatarActor();
+			LifeStealDealtPayload.Instigator = SourceActor;
+			LifeStealDealtPayload.Target = TargetActor;
 			LifeStealDealtPayload.EventMagnitude = TotalHealing;
 			LifeStealDealtPayload.ContextHandle = Spec.GetContext();
 			LifeStealDealtPayload.InstigatorTags = Spec.DynamicGrantedTags;

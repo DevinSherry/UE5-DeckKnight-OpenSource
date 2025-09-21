@@ -2,6 +2,7 @@
 
 
 #include "Game/GameplayAbilitySystem/GASCourseGameplayAbilitySet.h"
+#include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 
 void FGASCourseAbilitySet_GrantedHandles::AddAbilitySpecHandle(const FGameplayAbilitySpecHandle& Handle)
 {
@@ -104,11 +105,21 @@ void UGASCourseGameplayAbilitySet::GiveToAbilitySystem(UGASCourseAbilitySystemCo
 			continue;
 		}
 
+		FGameplayTag ActiveAbilityTag = AbilityToGrant.InputTag;
+		if (AbilityToGrant.InputTag == InputTag_AssignActiveSlot)
+		{
+			FGameplayTag AvailableSlotTag;
+			if (IsActiveAbilitySlotAvailable(ASC, AvailableSlotTag))
+			{
+				ActiveAbilityTag = AvailableSlotTag;
+			}
+		}
+
 		UGASCourseGameplayAbility* AbilityCDO = AbilityToGrant.Ability->GetDefaultObject<UGASCourseGameplayAbility>();
 
 		FGameplayAbilitySpec AbilitySpec(AbilityCDO, AbilityToGrant.AbilityLevel);
 		AbilitySpec.SourceObject = SourceObject;
-		AbilitySpec.GetDynamicSpecSourceTags().AddTag(AbilityToGrant.InputTag);
+		AbilitySpec.GetDynamicSpecSourceTags().AddTag(ActiveAbilityTag);
 
 		const FGameplayAbilitySpecHandle AbilitySpecHandle = ASC->GiveAbility(AbilitySpec);
 
@@ -136,4 +147,40 @@ void UGASCourseGameplayAbilitySet::GiveToAbilitySystem(UGASCourseAbilitySystemCo
 			OutGrantedHandles->AddGameplayEffectHandle(GameplayEffectHandle);
 		}
 	}
+}
+
+bool UGASCourseGameplayAbilitySet::IsActiveAbilitySlotAvailable(UGASCourseAbilitySystemComponent* ASC, FGameplayTag& AvailableSlotTag) const
+{
+	if (ASC == nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ASC is null!"));
+		return false;
+	}
+	if (const UGASC_AbilitySystemSettings* AbilitySystemSettings = GetDefault<UGASC_AbilitySystemSettings>())
+	{
+		FGameplayTagContainer ActiveAbilitySlotTags = AbilitySystemSettings->ActiveAbilitySlotTagContainer;
+		if (ActiveAbilitySlotTags.IsEmpty())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("ActiveAbilitySlotTagContainer is empty!"));
+			return false;
+		}
+
+		bool bHasActiveAbilitySlotAvailable = false;
+		for (const FGameplayTag& Tag : ActiveAbilitySlotTags)
+		{
+			if (IsValid(ASC->GetAbilityFromTaggedInput(Tag)))
+			{
+				continue;
+			}
+			
+			AvailableSlotTag = Tag;
+			bHasActiveAbilitySlotAvailable = true;
+			break;
+		}
+
+		return bHasActiveAbilitySlotAvailable;
+			
+	}
+
+	return false;
 }

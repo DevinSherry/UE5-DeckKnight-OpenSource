@@ -42,6 +42,24 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Ability System|Abilities|Haptic Feedback")
 	TSoftObjectPtr<UForceFeedbackEffect> HapticFeedback_AbilityActivationFail;
 
+	/**
+	 * ActiveAbilitySlotTagContainer
+	 *
+	 * Represents a container of gameplay tags corresponding to the active ability slots within the ability system.
+	 * This property allows for associating and categorizing abilities dynamically through the use of gameplay tag
+	 * containers. It can be configured through the engine's settings interface and accessed within Blueprints for
+	 * extending or managing ability-related features in the GASCourse framework.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Ability System|Abilities", meta=(GameplayTagFilter="Input.NativeAction.Ability"))
+	FGameplayTagContainer ActiveAbilitySlotTagContainer;
+
+	/**
+	 * LowHealthPercentage
+	 *
+	 * Represents the threshold percentage of health that determines if the character is considered to be in a "low health" state.
+	 * This property is configurable in the engine's settings interface and is clamped between 0.0 and 1.0 for valid input ranges.
+	 * It is primarily used within the GASCourse framework to enable gameplay mechanics or visual cues related to low health scenarios.
+	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Health", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float LowHealthPercentage;
 
@@ -62,6 +80,17 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Health")
 	TSubclassOf<UGameplayEffectExecutionCalculation> HealingExecution;
+
+	/**
+	 * CardResourceExecution
+	 *
+	 * Represents a configurable gameplay effect execution calculation class used for managing card resource calculations
+	 * within the GASCourse framework. This property allows for customization of card resource logic by specifying a custom
+	 * subclass of UGameplayEffectExecutionCalculation. It is part of the ability system settings and can be adjusted
+	 * via the engine's configuration interface to tailor gameplay mechanics related to card resources.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|CardResource")
+	TSubclassOf<UGameplayEffectExecutionCalculation> CardResourceExecution;
 
 	/**
 	 * DamageTypeUIData
