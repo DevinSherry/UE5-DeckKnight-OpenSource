@@ -77,6 +77,9 @@ public:
 	UFUNCTION()
 	void SimulateInputAction(const UInputAction* InputAction) const;
 
+	UFUNCTION()
+	void FlushCachedMovementInputAxisValue();
+
 	/**
 	 * Delegate used for broadcasting events when the input buffer is opened.
 	 */

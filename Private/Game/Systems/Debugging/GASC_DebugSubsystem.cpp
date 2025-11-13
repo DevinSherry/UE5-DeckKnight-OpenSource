@@ -6,6 +6,7 @@
 #include "GameFramework/Pawn.h"
 #include "Game/Systems/Debugging/Panels/FGASCAttributesPanel.h"
 #include "Game/Systems/Debugging/Panels/FGASC_ActiveCardEnergyXPHistoryPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_WaveManagerPanel.h"
 
 void UGASC_DebugSubsystem::Tick(float DeltaTime)
 {
@@ -27,6 +28,7 @@ void UGASC_DebugSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	DebugHub.RegisterDebugPanel(MakeShared<FGASCAttributesPanel>());
 	DebugHub.RegisterDebugPanel(MakeShared<FGASC_ActiveCardEnergyXPHistoryPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_WaveManagerPanel>());
 }
 
 void UGASC_DebugSubsystem::Deinitialize()
@@ -64,5 +66,20 @@ void UGASC_DebugSubsystem::CacheAllPawns(UWorld* World)
 		{
 			CachedPawns.Add(Pawn);
 		}
+	}
+
+	// Clean up history for destroyed actors
+	TArray<AActor*> ActorsToRemove;
+	for (auto& Pair : AttributeHistory)
+	{
+		if (!IsValid(Pair.Key))
+		{
+			ActorsToRemove.Add(Pair.Key);
+		}
+	}
+    
+	for (AActor* Actor : ActorsToRemove)
+	{
+		AttributeHistory.Remove(Actor);
 	}
 }

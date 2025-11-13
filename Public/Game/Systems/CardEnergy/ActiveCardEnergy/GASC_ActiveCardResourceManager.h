@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ActiveCardResourceSettings.h"
+#include "Abilities/GameplayAbilityTypes.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
 #include "GASC_ActiveCardResourceManager.generated.h"
 

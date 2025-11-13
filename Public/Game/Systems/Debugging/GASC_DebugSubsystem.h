@@ -5,7 +5,36 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "GameFramework/Pawn.h"
 #include "Panels/FGASCDebugHub.h"
+#include "UObject/ObjectKey.h"
 #include "GASC_DebugSubsystem.generated.h"
+
+USTRUCT(BlueprintType)
+struct FAttributeHistoryEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString AttributeName;
+
+	UPROPERTY()
+	float OldValue = 0.f;
+
+	UPROPERTY()
+	float NewValue = 0.f;
+
+	UPROPERTY()
+	FString InstigatorName;
+
+	UPROPERTY()
+	FString EffectName;
+
+	UPROPERTY()
+	FString ExecutionClassName;
+
+	FAttributeHistoryEntry() {}
+	FAttributeHistoryEntry(const FString& InAttr, float InOld, float InNew, const FString& InInstigator, const FString& InEffect, const FString& InExecClass)
+		: AttributeName(InAttr), OldValue(InOld), NewValue(InNew), InstigatorName(InInstigator), EffectName(InEffect), ExecutionClassName(InExecClass){}
+};
 
 /**
  * @class UGASC_DebugSubsystem
@@ -46,6 +75,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "GAS Course|Debug")
 	bool IsDebugOpen() const;
+	
+	TMap<AActor*, TArray<FAttributeHistoryEntry>> AttributeHistory;
 
 private:
 	void DrawImGui();

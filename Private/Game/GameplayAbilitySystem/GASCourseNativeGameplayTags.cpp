@@ -68,7 +68,9 @@ UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_OnHit, "Event.Gameplay.OnHit")
 UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_OnHealing, "Event.Gameplay.OnHealing")
 UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_OnTargetHealed, "Event.Gameplay.OnTargetHealed")
 UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_OnAbilityGranted, "Event.Gameplay.OnAbilityGranted")
+UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_Reaction_OnHit, "Event.Gameplay.Reaction.OnHit")
 
+UE_DEFINE_GAMEPLAY_TAG(Reaction_OnHit, "Reaction.Hit")
 
 UE_DEFINE_GAMEPLAY_TAG(Collision_IgnorePawn, "Collision.Ignore.Pawn")
 

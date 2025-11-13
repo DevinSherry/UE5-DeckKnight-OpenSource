@@ -34,7 +34,6 @@ struct FStateTreeEnhancedInputListenerTaskInstanceData
 	TArray<FEnhancedInputListenerData> InputListeners;
 
 	TArray<FEnhancedInputActionEventBinding*> InputActionBindings;
-
 	
 };
 

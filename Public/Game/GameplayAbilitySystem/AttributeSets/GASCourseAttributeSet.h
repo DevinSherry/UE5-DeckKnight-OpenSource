@@ -5,6 +5,7 @@
 #include "AttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
+#include "Game/Systems/Debugging/GASC_DebugSubsystem.h"
 #include "GASCourseAttributeSet.generated.h"
 
 /**
@@ -28,6 +29,8 @@ public:
 	UGASCourseAttributeSet();
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
 public:
 	
@@ -54,6 +57,9 @@ protected:
 	virtual void OnRep_TwoAttribute(const FGameplayAttributeData& OldTwoAttribute);
 
 	UPROPERTY()
-	const UGASC_AbilitySystemSettings* AbilitySystemSettings;
+	const UGASC_AbilitySystemSettings* AbilitySystemSettings = nullptr;
+
+	UPROPERTY()
+	const UGASC_DebugSubsystem* DebugSubsystem = nullptr;
 	
 };

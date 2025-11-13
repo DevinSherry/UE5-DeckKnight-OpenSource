@@ -5,18 +5,13 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayAbility.h"
 #include "GASC_NPC_GameplayAbilityBase.generated.h"
 
-USTRUCT(BlueprintType)
-struct FNPCAbilityData
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category= "NPC Ability Data")
-	AActor* Target;
-	
-};
-
 /**
- * 
+ * @class UGASC_NPC_GameplayAbilityBase
+ * @brief A base class for handling Non-Player Character (NPC) gameplay abilities within the GAS Course framework.
+ *
+ * This class extends the UGASCourseGameplayAbility to provide additional functionality specific to NPC abilities.
+ * It includes an editable data structure for NPC-specific ability data and overrides important methods to handle
+ * the initialization of abilities.
  */
 UCLASS()
 class GASCOURSE_API UGASC_NPC_GameplayAbilityBase : public UGASCourseGameplayAbility
@@ -26,10 +21,6 @@ class GASCOURSE_API UGASC_NPC_GameplayAbilityBase : public UGASCourseGameplayAbi
 public:
 	
 	UGASC_NPC_GameplayAbilityBase(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category= "NPC Ability Data")
-	FNPCAbilityData NPCAbilityData;
-
 	virtual void OnGiveAbility(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
 	
 };

@@ -6,7 +6,24 @@
 #include "GASC_TimeWarp_NotifyState.generated.h"
 
 /**
- * 
+ * @class UGASC_TimeWarp_NotifyState
+ * @brief A notify state class used for time warp behavior during animations.
+ *
+ * This class is typically used in animation systems to handle specific logic
+ * related to time manipulation or "time warp" effects during a defined state
+ * of an animation sequence.
+ *
+ * The UGASC_TimeWarp_NotifyState class allows developers to define custom
+ * functionality for pausing, slowing down, speeding up, or otherwise altering
+ * time behavior during particular animation timelines.
+ *
+ * Key Responsibilities:
+ * - Determine when the time warp should be triggered during an animation.
+ * - Apply custom logic to manipulate animation speed or behavior.
+ * - Cleanup or reset any changes to the time warp state as needed.
+ *
+ * This notify state is designed to integrate seamlessly with the Unreal Engine
+ * animation framework.
  */
 UCLASS()
 class GASCOURSE_API UGASC_TimeWarp_NotifyState : public UAnimNotifyState
@@ -24,15 +41,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Curve")
 	FRuntimeFloatCurve TimeWarpCurve;
 
+	UFUNCTION()
+	void OnMontageBlendingOut(UAnimMontage* Montage, bool bInterrupted);
+
 private:
 
-	float Duration = 0.0f;
-	bool bTimeWarpEnabled = false;
-	float DefaultPlayRate = 1.0f;
+	// Store per-component state to handle multiple instances
+	struct FTimeWarpState
+	{
+		float Duration = 0.0f;
+		float DefaultPlayRate = 1.0f;
+		bool bTimeWarpEnabled = false;
+		TWeakObjectPtr<UAnimInstance> AnimInstance = nullptr;
+		TWeakObjectPtr<UAnimMontage> AnimMontage = nullptr;
+	};
+	
+	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FTimeWarpState> ActiveStates;
 
-	UPROPERTY()
-	UAnimInstance* AnimInstance = nullptr;
-
-	UPROPERTY()
-	UAnimMontage* AnimMontage = nullptr;
 };

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "GASC_UI_DamageNumber.h"
 #include "Blueprint/UserWidget.h"
 #include "GASC_UI_DamageNumberPanel.generated.h"
@@ -28,8 +27,8 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage, meta=(BindWidget))
 	class UCanvasPanel* DamageNumberPanel;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage)
-	TMap<UGASC_UI_DamageNumber*, FVector> DamageNumbers;
+	UPROPERTY(EditAnywhere, Category=Damage)
+	TMap<TWeakObjectPtr<UGASC_UI_DamageNumber>, FVector> DamageNumbers;
 
 	UFUNCTION()
 	void OnDamageDealt(const FGameplayEventData& DamagePayloadData);
@@ -42,6 +41,9 @@ public:
 
 	UFUNCTION()
 	void OnDamageNumberRemoved(UGASC_UI_DamageNumber* DamageNumber);
+
+	UFUNCTION()
+	void GenerateDamageNumberPool();
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage)
 	TSubclassOf<UGASC_UI_DamageNumber> DamageNumberClass;
@@ -56,5 +58,22 @@ private:
 	FGameplayEventData DamageData;
 
 	FVector GetDamageNumberPosition(const FGameplayEventData& InPayload, const UGASC_UI_DamageNumber& DamageNumber) const;
-	FVector2D GetDamagePositionOnScreen(const FVector &InStoredPosition, const FGameplayEventData &StoredPayload, const UGASC_UI_DamageNumber& DamageNumber);
+	TOptional<FVector2D> GetDamagePositionOnScreen(const FVector &InStoredPosition, const FGameplayEventData &StoredPayload, const UGASC_UI_DamageNumber& DamageNumber);
+
+	UPROPERTY()
+	TArray<UGASC_UI_DamageNumber*> DamageNumberPool;
+
+	UPROPERTY()
+	UGASCourseDamageTypeUIData* DamageTypeUIData;
+
+	UPROPERTY()
+	APlayerController* OwningPlayerController;
+
+	UPROPERTY(EditAnywhere, Category=DamageUI)
+	int32 PoolSize = 100;
+
+	int32 DamageNumberPoolIndex = 0;
+
+	UGASC_UI_DamageNumber* GetPooledDamageNumber();
+	void ReturnToDamageNumberPool(UGASC_UI_DamageNumber* DamageNumber);
 };

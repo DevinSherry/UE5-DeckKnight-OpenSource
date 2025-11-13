@@ -13,8 +13,7 @@
 #include "Game/GameplayAbilitySystem/GASAbilityTagRelationshipMapping.h"
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseCharBaseAttributeSet.h"
 #include "Game/GameplayAbilitySystem/GameplayTagResponseTable/GASCourseStatusEffectTable.h"
-//#include "CogCommonDebugFilteredActorInterface.h"
-
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
 #include "GASCourseCharacter.generated.h"
 
 class UGASCourseGameplayAbilitySet;
@@ -104,6 +103,14 @@ class AGASCourseCharacter : public ACharacter, public IAbilitySystemInterface, p
 	GENERATED_BODY()
 
 public:
+
+	// --- Blueprint-accessible global delegates ---
+	UPROPERTY(BlueprintAssignable, Category = "Damage Pipeline")
+	FOnHitApplied OnHitAppliedDelegateCallback;
+
+	// --- Blueprint-accessible global delegates ---
+	UPROPERTY(BlueprintAssignable, Category = "Damage Pipeline")
+	FOnHitReceived OnHitReceivedDelegateCallback;
 	
 	AGASCourseCharacter(const class FObjectInitializer& ObjectInitializer);
 	
@@ -215,7 +222,7 @@ protected:
 	 * The meta flag AllowPrivateAccess is set to true, allowing private access to this component.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = StatusEffects, meta = (AllowPrivateAccess = "true"))
-	class UGASCStatusEffectListenerComp* StatusEffectListenerComp;;
+	class UGASCStatusEffectListenerComp* StatusEffectListenerComp;
 
 	/**
 	 * @brief The CharacterHealthComponent variable represents the component responsible for handling the health functionality of the character.

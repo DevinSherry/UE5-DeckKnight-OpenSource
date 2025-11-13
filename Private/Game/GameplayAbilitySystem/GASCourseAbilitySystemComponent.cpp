@@ -9,6 +9,7 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 UGASCourseAbilitySystemComponent::UGASCourseAbilitySystemComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -441,6 +442,31 @@ void UGASCourseAbilitySystemComponent::WaitForAbilityCooldownEnd(UGameplayAbilit
 			//CooldownEffectRemovalTask->Activate();
 		}
 	}
+}
+
+void UGASCourseAbilitySystemComponent::SendGameplayEventAsync(FGameplayTag EventTag, const FGameplayEventData& EventData)
+{
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(SendGameplayEventAsync);
+	
+	TWeakObjectPtr<UGASCourseAbilitySystemComponent> WeakThis(this);
+	FGameplayEventData EventDataCopy = EventData;
+	
+	UE::Tasks::Launch(
+		UE_SOURCE_LOCATION,
+		[WeakThis, EventTag, EventDataCopy]()
+		{
+			AsyncTask(ENamedThreads::GameThread, [WeakThis, EventTag, EventDataCopy]()
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(HandleGameplayEvent_Async)
+				if (UAbilitySystemComponent* ASC = WeakThis.Get())
+				{
+					ASC->HandleGameplayEvent(EventTag, &EventDataCopy);
+UE_LOG(LogAbilitySystemComponent, Display, TEXT("Async Gameplay Event Sent: %s"), *EventTag.GetTagName().ToString());
+				}
+			});
+		}
+	);
 }
 
 TSubclassOf<UGameplayAbility> UGASCourseAbilitySystemComponent::GetAbilityFromTaggedInput(FGameplayTag InputTag)

@@ -84,6 +84,8 @@ public:
 	virtual void CurrentMontageStop(float OverrideBlendOutTime /*= -1.0f*/) override;
 
 	void WaitForAbilityCooldownEnd(UGameplayAbility* InAbility, const FActiveGameplayEffectHandle InCooldownActiveGEHandle);
+	
+	void SendGameplayEventAsync(FGameplayTag EventTag, const FGameplayEventData& EventData);
 
 	UFUNCTION(BlueprintPure, meta=(GameplayTagFilter="Input.NativeAction.Ability"))
 	TSubclassOf<UGameplayAbility> GetAbilityFromTaggedInput(FGameplayTag InputTag);

@@ -9,6 +9,9 @@
 #include "GameplayEffectTypes.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
+#include "Game/GameplayAbilitySystem/GameplayAbilities/GASC_AbilityParamsObject.h"
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "StructUtils/PropertyBag.h"
 
 DEFINE_LOG_CATEGORY(LOG_GASC_GameplayAbility);
 
@@ -140,7 +143,41 @@ void UGASCourseGameplayAbility::OnGiveAbility(const FGameplayAbilityActorInfo* A
 	Super::OnGiveAbility(ActorInfo, Spec);
 	K2_OnAbilityAdded();
 	TryActivateAbilityOnSpawn(ActorInfo, Spec);
+	
+	if (UGASC_AbilityParamsObject* ParamsObject = Cast<UGASC_AbilityParamsObject>(Spec.SourceObject))
+	{
+		const FInstancedPropertyBag& Bag = ParamsObject->Params;
+		if (const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct())
+		{
+			// For each property the bag knows about
+			for (const FPropertyBagPropertyDesc& Desc : PBStruct->GetPropertyDescs())
+			{
+				// Find same-named property on this ability class
+				if (FProperty* DestProp = GetClass()->FindPropertyByName(Desc.Name))
+				{
+					// Get the memory address of the bag's storage for this property
+					// Use the descriptor to get the value address from the BAG, not from the PropertyBag struct
+					const FPropertyBagPropertyDesc* BagDesc = PBStruct->FindPropertyDescByName(Desc.Name);
+					if (!BagDesc || !BagDesc->CachedProperty)
+					{
+						continue;
+					}
 
+					// Get source pointer from the actual bag instance data
+					FConstStructView BagValue = Bag.GetValue();
+					const void* SrcPtr = BagDesc->CachedProperty->ContainerPtrToValuePtr<void>(BagValue.GetMemory());
+					void* DstPtr = DestProp->ContainerPtrToValuePtr<void>(this);
+
+					if (SrcPtr && DstPtr)
+					{
+						// Let reflection do the copy, regardless of type
+						DestProp->CopyCompleteValue(DstPtr, SrcPtr);
+					}
+				}
+			}
+		}
+	}
+	
 	if (GetAbilitySlotType() == EGASCourseAbilitySlotType::PrimarySlot)
 	{
 		FGameplayEventData OnAbilityGranted;
@@ -178,6 +215,16 @@ void UGASCourseGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 	{
 		CommitAbility(Handle, ActorInfo, ActivationInfo);
 	}
+
+	if (UWorld* World = GetWorld())
+	{
+		DamagePipelineSubsystem = World->GetSubsystem<UGASC_DamagePipelineSubsystem>();
+		if (DamagePipelineSubsystem)
+		{
+			DamagePipelineSubsystem->OnHitAppliedDelegateCallback.AddDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
+			DamagePipelineSubsystem->OnHitReceivedDelegateCallback.AddDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
+		}
+	}
 	
 	CachedInputDirection = GetInputDirection();
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -188,6 +235,12 @@ void UGASCourseGameplayAbility::EndAbility(const FGameplayAbilitySpecHandle Hand
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+
+	if (DamagePipelineSubsystem)
+	{
+		DamagePipelineSubsystem->OnHitAppliedDelegateCallback.RemoveDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
+		DamagePipelineSubsystem->OnHitReceivedDelegateCallback.RemoveDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
+	}
 }
 
 bool UGASCourseGameplayAbility::CheckCost(const FGameplayAbilitySpecHandle Handle,
@@ -543,5 +596,21 @@ void UGASCourseGameplayAbility::InvokeAbilityFailHapticFeedback() const
 				PC->ClientPlayForceFeedback(ForceFeedbackEffect);
 			}
 		}
+	}
+}
+
+void UGASCourseGameplayAbility::OnHitApplied(const FHitContext& HitContext)
+{
+	if (HitContext.HitInstigator.Get() == GetAvatarActorFromActorInfo())
+	{
+		OnHitApplied_Event(HitContext);
+	}
+}
+
+void UGASCourseGameplayAbility::OnHitReceived(const FHitContext& HitContext)
+{
+	if (HitContext.HitTarget.Get() == GetAvatarActorFromActorInfo())
+	{
+		OnHitReceived_Event(HitContext);
 	}
 }

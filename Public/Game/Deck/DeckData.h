@@ -43,7 +43,7 @@ struct FCardData : public FTableRowBase
 	FText CardDescription;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
-	TEnumAsByte<ECardType> CardType;
+	TEnumAsByte<ECardType> CardType = ECardType::EmptyCard;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
 	UBaseCardGameplayAbilitySet* CardAbilitySet = nullptr;

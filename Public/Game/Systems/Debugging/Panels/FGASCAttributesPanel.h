@@ -5,35 +5,6 @@
 #include "GameplayEffectTypes.h"
 #include "AbilitySystemComponent.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
-#include "FGASCAttributesPanel.generated.h"
-
-USTRUCT()
-struct FAttributeHistoryEntry
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FString AttributeName;
-
-	UPROPERTY()
-	float OldValue = 0.f;
-
-	UPROPERTY()
-	float NewValue = 0.f;
-
-	UPROPERTY()
-	FString InstigatorName;
-
-	UPROPERTY()
-	FString EffectName;
-
-	UPROPERTY()
-	FString ExecutionClassName;
-
-	FAttributeHistoryEntry() {}
-	FAttributeHistoryEntry(const FString& InAttr, float InOld, float InNew, const FString& InInstigator, const FString& InEffect, const FString& InExecClass)
-		: AttributeName(InAttr), OldValue(InOld), NewValue(InNew), InstigatorName(InInstigator), EffectName(InEffect), ExecutionClassName(InExecClass){}
-};
 
 /**
  * @class FGASCAttributesPanel
@@ -68,13 +39,13 @@ public:
 	virtual void DrawDebugPanel(bool& bOpen) override;
 	virtual void UpdateCachedPawns(TArray<TWeakObjectPtr<APawn>> Pawns) override;
 
-	static TMap<const FProperty*, TArray<FAttributeHistoryEntry>> AttributeHistories;
-
 private:
 	
 	static TWeakObjectPtr<APawn> SelectedPawn;
 	static TWeakObjectPtr<UAbilitySystemComponent> SelectedASC;
 	static TArray<FOnAttributeChangeData> ChangedHistory;
+
+	TMap<FGameplayAttribute, bool> AttributeHistoryWindows;
 
 	void InitializeAbilitySystemComponent(UAbilitySystemComponent* ASC);
 };

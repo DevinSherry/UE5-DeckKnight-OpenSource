@@ -18,7 +18,7 @@ void UGASC_TimeDilation_Subsystem::Tick(float DeltaTime)
 		return;
 	}
 	
-	if (!IsInitialized() & !bWorldBeginPlay)
+	if (!IsInitialized() && !bWorldBeginPlay)
 	{
 		return;
 	}
@@ -275,7 +275,11 @@ void UGASC_TimeDilation_Subsystem::ProcessLocalHitStops(float DeltaTime)
 		
 		float ScaledDeltaTime = DeltaTime; // Provided during Tick or gameplay
 		float GlobalTimeDilation = UGameplayStatics::GetGlobalTimeDilation(GetWorld());
-		float UnscaledDeltaTime = ScaledDeltaTime / GlobalTimeDilation;
+		if (GlobalTimeDilation <= KINDA_SMALL_NUMBER)
+		{
+			GlobalTimeDilation = 1.0f;
+		}
+		const float UnscaledDeltaTime = ScaledDeltaTime / GlobalTimeDilation;
 
 		if (ActiveLocalTimeDilation->bUseTimeDilationCurve)
 		{
@@ -288,17 +292,19 @@ void UGASC_TimeDilation_Subsystem::ProcessLocalHitStops(float DeltaTime)
 						ActiveLocalTimeDilation->TimeDilationDuration < 0.0f ? ActiveLocalTimeDilation->TimeDilationDuration : Keys.Last().Time;
 				}
 			}
-
-			float CurrentLocalTimeDilation = ActiveLocalTimeDilation->TimeDilationDuration < 0.0f ? 1.0f : ActiveLocalTimeDilation->TimeDilation;
-			float CurveAlpha = ActiveLocalTimeDilation->ElapsedTime / CurrentLocalTimeDilation;
-			float CurveValue = FAlphaBlend::AlphaToBlendOption(CurveAlpha, ActiveLocalTimeDilation->BlendMode, ActiveLocalTimeDilation->CustomTimeDilationCurve);
-
+			
+			float CurveAlpha = ActiveLocalTimeDilation->ElapsedTime / ActiveLocalTimeDilation->TimeDilationDuration;
+			float CurveValue = ActiveLocalTimeDilation->CustomTimeDilationCurve ?
+			CurveValue = ActiveLocalTimeDilation->CustomTimeDilationCurve->GetFloatValue(CurveAlpha) :
+				FAlphaBlend::AlphaToBlendOption(CurveAlpha, ActiveLocalTimeDilation->BlendMode, ActiveLocalTimeDilation->CustomTimeDilationCurve);
+			
 			CurveValue = FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f), FVector2D(ActiveLocalTimeDilation->TimeDilation, 1.0f), CurveValue);
 
 			for (AActor* AffectedActor : ActiveLocalTimeDilation->AffectedActors)
 			{
 				if (AffectedActor)
 				{
+					UE_LOG(LogTemp, Warning, TEXT("TimeDilation: %f"), CurveValue);
 					AffectedActor->CustomTimeDilation = CurveValue;
 				}
 			}
@@ -344,7 +350,7 @@ void UGASC_TimeDilation_Subsystem::ProcessLocalHitStops(float DeltaTime)
 
 void UGASC_TimeDilation_Subsystem::ProcessGlobalHitStops(float DeltaTime)
 {
-	if (ActiveGlobalTimeDilation)
+if (ActiveGlobalTimeDilation)
 	{
 		float ScaledDeltaTime = DeltaTime; // Provided during Tick or gameplay
 		float GlobalTimeDilation = UGameplayStatics::GetGlobalTimeDilation(GetWorld());

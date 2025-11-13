@@ -43,17 +43,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FOnDurationChanged OnDurationTimeUpdated;
 
-protected:
-
-	UPROPERTY()
-	UAbilitySystemComponent* ASC;
-
-	FGameplayTagContainer DurationTags;
-	float DurationInterval = 0.1f;
-	bool bUseServerCooldown;
-	const UObject* WorldContext;
-
-	/**
+		/**
 	 * This method is invoked when a gameplay effect is added to the target ability system component (ASC).
 	 * It retrieves the asset tags and granted tags from the applied gameplay effect specification (SpecApplied)
 	 * and checks if any of them match the duration tags (DurationTagArray) specified.
@@ -86,6 +76,17 @@ protected:
 	 */
 	void DurationTagChanged(const FGameplayTag InDurationTag, int32 InNewCount);
 
+
+protected:
+
+	UPROPERTY()
+	UAbilitySystemComponent* ASC;
+
+	FGameplayTagContainer DurationTags;
+	float DurationInterval = 0.1f;
+	bool bUseServerCooldown;
+	const UObject* WorldContext;
+	
 	/**
 	 * Retrieves the remaining time and total duration of the longest active cooldown with the specified tags.
 	 *

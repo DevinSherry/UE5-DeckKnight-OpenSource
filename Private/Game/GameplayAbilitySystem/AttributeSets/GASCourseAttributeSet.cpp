@@ -2,6 +2,8 @@
 
 
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseAttributeSet.h"
+#include "GameplayEffectExtension.h"
+#include "GameplayEffectExecutionCalculation.h" 
 #include "Net/UnrealNetwork.h"
 
 UGASCourseAttributeSet::UGASCourseAttributeSet()
@@ -17,8 +19,42 @@ void UGASCourseAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	DOREPLIFETIME_CONDITION_NOTIFY(UGASCourseAttributeSet, TwoAttribute, COND_None, REPNOTIFY_Always);
 }
 
+void UGASCourseAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
+{
+	Super::PostGameplayEffectExecute(Data);
+
+	if (UAbilitySystemComponent* ASC = GetOwningAbilitySystemComponent())
+	{
+		if (UWorld* World = ASC->GetWorld())
+		{
+			if (UGameInstance* GI = World->GetGameInstance())
+			{
+				if (UGASC_DebugSubsystem* Subsystem = GI->GetSubsystem<UGASC_DebugSubsystem>())
+				{
+					FAttributeHistoryEntry Entry;
+					Entry.AttributeName = Data.EvaluatedData.Attribute.AttributeName;
+					Entry.NewValue = ASC->GetNumericAttribute(Data.EvaluatedData.Attribute);
+					Entry.OldValue = Entry.NewValue - Data.EvaluatedData.Magnitude;
+					Entry.InstigatorName = Data.EffectSpec.GetContext().GetOriginalInstigator() ? Data.EffectSpec.GetContext().GetOriginalInstigator()->GetName()
+						: "None";
+					Entry.EffectName = Data.EffectSpec.Def ? Data.EffectSpec.Def.GetFullName(): "None";
+					if (Data.EffectSpec.Def->Executions.Num() > 0)
+					{
+						Entry.ExecutionClassName = Data.EffectSpec.Def->Executions[0].CalculationClass->GetFullName();
+					}
+					else
+					{
+						Entry.ExecutionClassName = "None";
+					}
+					Subsystem->AttributeHistory.FindOrAdd(ASC->GetAvatarActor()).Add(Entry);
+				}
+			}
+		}
+	}
+}
+
 void UGASCourseAttributeSet::AdjustAttributeForMaxChange(FGameplayAttributeData& AffectedAttribute,
-	const FGameplayAttributeData& MaxAttribute, float NewMaxValue, const FGameplayAttribute& AffectedAttributeProperty)
+                                                         const FGameplayAttributeData& MaxAttribute, float NewMaxValue, const FGameplayAttribute& AffectedAttributeProperty)
 {
 	UAbilitySystemComponent* AbilityComp = GetOwningAbilitySystemComponent();
 	const float CurrentMaxValue = MaxAttribute.GetCurrentValue();

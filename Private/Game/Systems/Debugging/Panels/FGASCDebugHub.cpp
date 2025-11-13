@@ -12,6 +12,7 @@ FGASCDebugHub::FGASCDebugHub()
 
 FGASCDebugHub::~FGASCDebugHub()
 {
+	DebugPanels.Empty();
 }
 
 void FGASCDebugHub::RegisterDebugPanel(const TSharedPtr<IIGASCDebugPanel> &Panel)

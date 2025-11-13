@@ -31,38 +31,21 @@ public:
 	
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
 public:
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes", ReplicatedUsing=OnRep_MovementSpeedMultiplier)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes")
 	FGameplayAttributeData MovementSpeedMultiplier = 1.0f;
 	ATTRIBUTE_ACCESSORS(UGASCourseCharBaseAttributeSet, MovementSpeedMultiplier)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes", ReplicatedUsing=OnRep_CrouchSpeed)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes")
 	FGameplayAttributeData CrouchSpeed;
 	ATTRIBUTE_ACCESSORS(UGASCourseCharBaseAttributeSet, CrouchSpeed)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes", ReplicatedUsing=OnRep_JumpZVelocityOverride)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes")
 	FGameplayAttributeData JumpZVelocityOverride;
 	ATTRIBUTE_ACCESSORS(UGASCourseCharBaseAttributeSet, JumpZVelocityOverride)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes", ReplicatedUsing=OnRep_AirControlOverride)
+	UPROPERTY(BlueprintReadOnly, Category = "Character Base Attributes")
 	FGameplayAttributeData AirControlOverride;
 	ATTRIBUTE_ACCESSORS(UGASCourseCharBaseAttributeSet, AirControlOverride)
-	
-protected:
-	
-	UFUNCTION()
-	virtual void OnRep_MovementSpeedMultiplier(const FGameplayAttributeData& OldMovementSpeedMultiplier);
-	
-	UFUNCTION()
-	virtual void OnRep_CrouchSpeed(const FGameplayAttributeData& OldCrouchSpeed);
-	
-	UFUNCTION()
-	virtual void OnRep_JumpZVelocityOverride(const FGameplayAttributeData& OldJumpZVelocityOverride);
-	
-	UFUNCTION()
-	virtual void OnRep_AirControlOverride(const FGameplayAttributeData& OldJAirControlOverride);
-	
 };

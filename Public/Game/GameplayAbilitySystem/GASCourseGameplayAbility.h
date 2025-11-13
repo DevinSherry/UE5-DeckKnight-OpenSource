@@ -5,6 +5,7 @@
 #include "Abilities/GameplayAbility.h"
 #include "Game/Character/Player/GASCoursePlayerCharacter.h"
 #include "Game/Character/Player/GASCoursePlayerController.h"
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "GASCourseGameplayAbility.generated.h"
 
 /*
@@ -285,5 +286,20 @@ protected:
 	 */
 	UPROPERTY(BlueprintReadOnly, Transient, Category="GASCourse|Ability|Input")
 	FVector CachedInputDirection = FVector::ZeroVector;
+
+	UPROPERTY()
+	TObjectPtr<UGASC_DamagePipelineSubsystem> DamagePipelineSubsystem;
+
+	UFUNCTION()
+	void OnHitApplied(const FHitContext& HitContext);
+
+	UFUNCTION()
+	void OnHitReceived(const FHitContext& HitContext);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
+	void OnHitApplied_Event(const FHitContext& HitContext);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
+	void OnHitReceived_Event(const FHitContext& HitContext);
 	
 };

@@ -2,13 +2,13 @@
 
 
 #include "Game/Systems/Subsystems/MeleeTrace/GASC_MeleeTrace_Subsystem.h"
-#include "AbilitySystemBlueprintLibrary.h"
 #include "Game/Systems/Subsystems/MeleeTrace/Settings/GASC_MeleeSubsystem_Settings.h" 
 #include "KismetTraceUtils.h"
 #include "Game/Systems/Subsystems/MeleeTrace/Shapes/GASC_MeleeShape_Base.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionQueryParams.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "NativeGameplayTags.h"
@@ -70,7 +70,9 @@ bool UGASC_MeleeTrace_Subsystem::ShouldCreateSubsystem(UObject* Outer) const
 	UWorld* OuterWorld = Cast<UWorld>(Outer);
 
 	// Allow the subsystem to be created in the editor world
-	return OuterWorld && OuterWorld->WorldType == EWorldType::Editor || Super::ShouldCreateSubsystem(Outer);
+	return (OuterWorld &&
+		(OuterWorld->WorldType == EWorldType::Editor
+		 || Super::ShouldCreateSubsystem(Outer)));
 }
 
 void UGASC_MeleeTrace_Subsystem::OnWorldBeginPlay(UWorld& InWorld)
@@ -413,8 +415,7 @@ void UGASC_MeleeTrace_Subsystem::RequestShapeMeleeTrace(AActor* Instigator, FGAS
 	NewMeleeTraceRequest.TraceId = TraceId;
 	NewMeleeTraceRequest.InstigatorActor = Instigator;
 	NewMeleeTraceRequest.TraceCollisionShape = NewMeleeTraceRequest.TraceShape->CreateCollisionShape();
-	NewMeleeTraceRequest.SourceMeshComponent = GetMeshComponent(Instigator, NewMeleeTraceRequest.TraceSocket_Start,
-		NewMeleeTraceRequest.TraceSocket_End);
+	NewMeleeTraceRequest.SourceMeshComponent = GetMeshComponent(Instigator, NewMeleeTraceRequest);
 
 	GetTraceSamples(NewMeleeTraceRequest.SourceMeshComponent.Get(), TraceData.TraceDensity,
 		NewMeleeTraceRequest.TraceSocket_Start,
@@ -467,6 +468,10 @@ void UGASC_MeleeTrace_Subsystem::ProcessMeleeTraces(float DeltaTime)
 
 	for (FGASC_MeleeTrace_Subsystem_Data& ActiveMeleeTraceRequest : MeleeTraceRequests)
 	{
+		if (ActiveMeleeTraceRequest.SourceMeshComponent == nullptr)
+		{
+			break;
+		}
 		QueryParams.AddIgnoredActor(ActiveMeleeTraceRequest.InstigatorActor);
 		TArray<FHitResult> HitResults;
 		TArray<FVector> TraceSamples;
@@ -528,13 +533,52 @@ void UGASC_MeleeTrace_Subsystem::ProcessMeleeTraces(float DeltaTime)
 			ActiveMeleeTraceRequest.HitActors_PreviousFrames.Add(Hit.GetActor());
 			if (AGASCourseCharacter* InstigatorCharacter = Cast<AGASCourseCharacter>(ActiveMeleeTraceRequest.InstigatorActor))
 			{
+				UGASCourseAbilitySystemComponent* InstigatorASC = Cast<UGASCourseAbilitySystemComponent>(InstigatorCharacter->GetAbilitySystemComponent());
+				if (!InstigatorASC)
+				{
+					return;
+				}
+				AGASCourseCharacter* TargetCharacter = Cast<AGASCourseCharacter>(Hit.GetActor());
+				if (!TargetCharacter)
+				{
+					return;
+				}
+
+				UGASCourseAbilitySystemComponent* TargetASC = Cast<UGASCourseAbilitySystemComponent>(TargetCharacter->GetAbilitySystemComponent());
+				if (!TargetASC)
+				{
+					return;
+				}
+				
+				if (UGASC_DamagePipelineSubsystem* DamageSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+				{
+					FHitContext HitContext;
+					HitContext.HitTarget = TargetCharacter;
+					HitContext.HitInstigator = InstigatorCharacter;
+					HitContext.OptionalSourceObject = nullptr;
+					HitContext.HitTargetTagsContainer = TargetASC->GetOwnedGameplayTags();
+					HitContext.HitInstigatorTagsContainer = InstigatorASC->GetOwnedGameplayTags();
+					HitContext.HitContextTagsContainer = FGameplayTagContainer::EmptyContainer;
+					HitContext.HitResult = Hit;
+					HitContext.HitTimeStamp = GetWorld()->GetTimeSeconds();
+					DamageSubsystem->OnHitEvent(HitContext);
+				}
+				/*
 				FGameplayEventData OnHitPayload;
 				OnHitPayload.Instigator = InstigatorCharacter;
 				OnHitPayload.Target = Hit.GetActor();
 				FGameplayAbilityTargetData_SingleTargetHit* TargetDataHit = new FGameplayAbilityTargetData_SingleTargetHit(Hit);
-
+				OnHitPayload.InstigatorTags.AppendTags(InstigatorASC->GetOwnedGameplayTags());
+				OnHitPayload.TargetTags.AppendTags(TargetASC->GetOwnedGameplayTags());
 				OnHitPayload.TargetData.Add(TargetDataHit);
-				InstigatorCharacter->GetAbilitySystemComponent()->HandleGameplayEvent(Event_Gameplay_OnHit, &OnHitPayload);
+
+				//InstigatorASC->SendGameplayEventAsync(Event_Gameplay_OnHit, OnHitPayload);
+				InstigatorASC->HandleGameplayEvent(Event_Gameplay_OnHit, &OnHitPayload);
+
+				OnHitPayload.EventTag = Event_Gameplay_Reaction_OnHit;
+				OnHitPayload.InstigatorTags.AddTag(Reaction_OnHit);
+				TargetASC->SendGameplayEventAsync(Event_Gameplay_OnHit, OnHitPayload);
+				*/
 			}
 		}
 	}
@@ -571,6 +615,8 @@ FCollisionObjectQueryParams UGASC_MeleeTrace_Subsystem::ConfigureCollisionObject
 void UGASC_MeleeTrace_Subsystem::GetTraceSamples(const UMeshComponent* MeshComponent, int32 TraceDensity,
                                                  const FName& StartSocketName, const FName& EndSocketName, TArray<FVector>& OutSamples)
 {
+	if (MeshComponent == nullptr)
+		return;
 	OutSamples.Reset(TraceDensity + 1);
 	TraceDensity = FMath::Max(TraceDensity, 1);
 	const FVector StartSampleLocation = MeshComponent->GetSocketLocation(StartSocketName);
@@ -584,7 +630,7 @@ void UGASC_MeleeTrace_Subsystem::GetTraceSamples(const UMeshComponent* MeshCompo
 	}
 }
 
-TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(AActor* Actor, const FName& StartSocketName, const FName& EndSocketName)
+TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(const AActor* Actor, const FGASC_MeleeTrace_Subsystem_Data& InTraceData)
 {
 	if (Actor == nullptr)
 	{
@@ -592,13 +638,15 @@ TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(AAct
 		return nullptr;
 	}
 
-	if (USkeletalMeshComponent* SkeletalMeshComponent = Actor->FindComponentByClass<USkeletalMeshComponent>())
+	//Add failsafe if socket names are set to NAME_None
+	const FName StartSocketName = InTraceData.TraceSocket_Start == NAME_None ? FName("Root") : InTraceData.TraceSocket_Start;
+	const FName EndSocketName = InTraceData.TraceSocket_End == NAME_None ? FName("Root") : InTraceData.TraceSocket_End;
+
+	switch (InTraceData.TraceObject)
 	{
-		if (SkeletalMeshComponent->DoesSocketExist(StartSocketName) && SkeletalMeshComponent->DoesSocketExist(EndSocketName))
-		{
-			return SkeletalMeshComponent;
-		}
-		else
+	case EGASC_MeleeTrace_TraceObject::Weapon:
+		
+		if (USkeletalMeshComponent* SkeletalMeshComponent = Actor->FindComponentByClass<USkeletalMeshComponent>())
 		{
 			TArray<USceneComponent*> ChildrenComponents;
 			SkeletalMeshComponent->GetChildrenComponents(true, ChildrenComponents);
@@ -614,18 +662,25 @@ TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(AAct
 				}
 			}
 		}
-	}
-	else
-	{
+
+	case EGASC_MeleeTrace_TraceObject::CharacterMesh:
+		if (USkeletalMeshComponent* SkeletalMeshComponent = Actor->FindComponentByClass<USkeletalMeshComponent>())
+		{
+			if (SkeletalMeshComponent->DoesSocketExist(StartSocketName) && SkeletalMeshComponent->DoesSocketExist(EndSocketName))
+			{
+				return SkeletalMeshComponent;
+			}
+		}
+
+	default:
 		UE_LOG(LOG_GASC_MeleeTraceSubsystem, Warning, TEXT("No Skeletal Mesh Component found!"));
 		return nullptr;
+		
 	}
-
-	return nullptr;
 }
 
 FGASC_MeleeTrace_Subsystem_Data UGASC_MeleeTrace_Subsystem::CreateShapeDataFromRow(
-	FGASC_MeleeTrace_TraceShapeData RowData)
+	const FGASC_MeleeTrace_TraceShapeData& RowData) const
 {
 	FGASC_MeleeTrace_Subsystem_Data TraceData;
 	TraceData.TraceDensity = RowData.TraceDensity;

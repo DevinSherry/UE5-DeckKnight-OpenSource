@@ -17,7 +17,6 @@ GAMEPLAYATTRIBUTE_VALUE_INITTER(PropertyName)
  * @brief This class represents a specialized Attribute Set for managing health-related attributes in a Gameplay Ability System (GAS).
  *
  * UGASCourseHealthAttributeSet is designed to encapsulate attributes crucial to gameplay```cpp mechanics
- /**
  ,
  * such as * @ health, allowing for a modularclass UGASCourseHealthAttribute and scalable approach to handling player or characterSet
  * @brief Represents stats.

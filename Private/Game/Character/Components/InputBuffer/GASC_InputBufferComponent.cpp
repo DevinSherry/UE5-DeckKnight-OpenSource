@@ -150,6 +150,7 @@ void UGASC_InputBufferComponent::CloseInputBuffer_Implementation()
 	bInputBufferOpen = false;
 	ActivateBufferedInputAbility();
 	FlushInputBuffer();
+	FlushCachedMovementInputAxisValue();
 	OnInputBufferClosedEvent.Broadcast();
 }
 
@@ -189,6 +190,7 @@ void UGASC_InputBufferComponent::AddInputActionToBuffer(UInputAction* InAction)
 		*InAction->GetName(), *INPUT_BUFFER_COMPONENT_NAME);
 		BufferedInputActions.AddUnique(InAction);
 		BufferedMovementInputAxis = MovementInputAxis;
+		UE_LOGFMT(LOG_GASC_InputBufferComponent, Warning, "BufferedMovementInputAxis: {0}, {1}", BufferedMovementInputAxis.ToString(), INPUT_BUFFER_COMPONENT_NAME);
 	}
 }
 
@@ -261,12 +263,17 @@ void UGASC_InputBufferComponent::SimulateInputAction(const UInputAction* InputAc
 	}
 }
 
+void UGASC_InputBufferComponent::FlushCachedMovementInputAxisValue()
+{
+	BufferedMovementInputAxis = FVector2D::ZeroVector;
+	MovementInputAxis = FVector2D::ZeroVector;
+}
+
 FVector2D UGASC_InputBufferComponent::GetMovementInputAxisValue()
 {
-	//TODO: Fix this, not properly returning right value
 	FVector2D MovementInputAxisValue = BufferedMovementInputAxis;
 	UE_LOG(LogTemp, Warning, TEXT("INPUT BUFFER: Buffered Movement Input: %s"), *MovementInputAxisValue.ToString())
-	BufferedMovementInputAxis = FVector2D::ZeroVector;
+	FlushCachedMovementInputAxisValue();
 	return MovementInputAxisValue;
 }
 

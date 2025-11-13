@@ -3,7 +3,6 @@
 
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseHealthAttributeSet.h"
 #include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemGlobals.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GameplayEffectExtension.h"
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"

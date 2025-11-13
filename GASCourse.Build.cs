@@ -1,26 +1,53 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
 
-// GASCourse.Build.cs
 public class GASCourse : ModuleRules
 {
 	public GASCourse(ReadOnlyTargetRules Target) : base(Target)
 	{
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		SetupGameplayDebuggerSupport(Target);
 		SetupIrisSupport(Target);
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-        
-		PrivateDependencyModuleNames.AddRange(new[] { "AIModule", "UMG", "Slate", "NetCore", "MotionWarping", "StateTreeModule", "GameplayStateTreeModule", "AITestSuite" });
-		PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore", "PhysicsCore","EnhancedInput", "TargetingSystem", "GameplayAbilities", 
-			"GameplayTasks", "GameplayTags", "ModelViewViewModel", "Niagara", "StateTreeModule", "ImGui"
+
+		PublicDependencyModuleNames.AddRange(new[]
+		{
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"InputCore",
+			"PhysicsCore",
+			"EnhancedInput",
+			"GameplayAbilities",
+			"GameplayTasks",
+			"GameplayTags",
+			"UMG",
+			"Niagara",
+			"NavigationSystem",
+			"TargetingSystem",
+			"ModelViewViewModel",
+			"PropertyBindingUtils"
 		});
-        
+
+		PrivateDependencyModuleNames.AddRange(new[]
+		{
+			"AIModule",
+			"NetCore",
+			"MotionWarping",
+			"StateTreeModule",
+			"GameplayStateTreeModule", 
+			"Slate"
+		});
+
 		if (Target.Type == TargetType.Editor)
 		{
-			PublicDependencyModuleNames.AddRange(new[] 
+			PrivateDependencyModuleNames.AddRange(new[]
 			{
-				"UnrealEd"
+				"UnrealEd",
+				"StructUtilsEditor",
+				"BlueprintGraph",
+				"AssetTools",
+				"AssetRegistry",
+				"Kismet",
+				"StateTreeEditorModule" 
 			});
 		}
 	}

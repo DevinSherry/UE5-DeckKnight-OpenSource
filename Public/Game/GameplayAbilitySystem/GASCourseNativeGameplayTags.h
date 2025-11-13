@@ -74,6 +74,9 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Gameplay_OnHit);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Gameplay_OnHealing);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Gameplay_OnTargetHealed);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Gameplay_OnAbilityGranted);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Gameplay_Reaction_OnHit);
+
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Reaction_OnHit);
 
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Collision_IgnorePawn);
 

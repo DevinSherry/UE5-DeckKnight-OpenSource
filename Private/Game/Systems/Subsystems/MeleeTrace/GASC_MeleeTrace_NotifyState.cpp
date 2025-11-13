@@ -36,9 +36,47 @@ void UGASC_MeleeTrace_NotifyState::NotifyBegin(USkeletalMeshComponent* MeshComp,
 		{
 			if (FGASC_MeleeTrace_TraceShapeData* RowData = MeleeTraceRowHandle.GetRow<FGASC_MeleeTrace_TraceShapeData>("Context"))
 			{
-				FName StartSocket = RowData->StartSocket;
-				FName EndSocket = RowData->EndSocket;
+
 				MeleeTraceSubsystemData = CreateShapeDataFromRow(*RowData);
+				//Add failsafe if socket names are set to NAME_None
+				const FName StartSocketName = RowData->StartSocket == NAME_None ? FName("Root") : RowData->StartSocket;
+				const FName EndSocketName = RowData->EndSocket == NAME_None ? FName("Root") : RowData->EndSocket;
+
+				switch (RowData->TraceObject)
+				{
+				case EGASC_MeleeTrace_TraceObject::Weapon:
+		
+					if (USkeletalMeshComponent* SkeletalMeshComponent = MeshComp)
+					{
+						TArray<USceneComponent*> ChildrenComponents;
+						SkeletalMeshComponent->GetChildrenComponents(true, ChildrenComponents);
+						for (USceneComponent* ChildComponent : ChildrenComponents)
+						{
+							if (auto* TypedMeshComponent = Cast<UMeshComponent>(ChildComponent))
+							{
+								if (TypedMeshComponent->DoesSocketExist(StartSocketName)
+									&& TypedMeshComponent->DoesSocketExist(EndSocketName))
+								{
+									DebugMeshComponent = TypedMeshComponent;
+									break;
+								}
+							}
+						}
+					}
+
+				case EGASC_MeleeTrace_TraceObject::CharacterMesh:
+					if (USkeletalMeshComponent* SkeletalMeshComponent = MeshComp)
+					{
+						if (SkeletalMeshComponent->DoesSocketExist(StartSocketName) && SkeletalMeshComponent->DoesSocketExist(EndSocketName))
+						{
+							DebugMeshComponent = SkeletalMeshComponent;
+						}
+					}
+
+				default:
+					UE_LOG(LOG_GASC_MeleeTraceSubsystem, Warning, TEXT("No Skeletal Mesh Component found!"));
+				}
+				/*
 				if (MeshComp->DoesSocketExist(StartSocket) && MeshComp->DoesSocketExist(EndSocket))
 				{
 					DebugMeshComponent = MeshComp;
@@ -59,6 +97,7 @@ void UGASC_MeleeTrace_NotifyState::NotifyBegin(USkeletalMeshComponent* MeshComp,
 						}
 					}
 				}
+				*/
 			}
 		}
 	}

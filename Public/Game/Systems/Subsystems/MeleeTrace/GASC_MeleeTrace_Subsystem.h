@@ -20,6 +20,13 @@ enum class EGASC_MeleeTrace_TraceShape : uint8
 	Sphere 
 };
 
+UENUM(BlueprintType)
+enum class EGASC_MeleeTrace_TraceObject : uint8
+{
+	CharacterMesh,
+	Weapon,
+};
+
 USTRUCT(BlueprintType)
 struct FGASC_MeleeTrace_TraceShapeData : public FTableRowBase
 {
@@ -40,6 +47,9 @@ struct FGASC_MeleeTrace_TraceShapeData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace|Shape Data", meta=(EditCondition = "TraceShape == EGASC_MeleeTrace_TraceShape::Box"))
 	FVector BoxExtent = FVector::Zero();
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace|Socket Data")
+	EGASC_MeleeTrace_TraceObject TraceObject = EGASC_MeleeTrace_TraceObject::Weapon;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace|Socket Data")
 	FName StartSocket = FName("WeaponTrace_Start");
 
@@ -68,20 +78,29 @@ struct FGASC_MeleeTrace_Subsystem_Data
 	TObjectPtr<UGASC_MeleeShape_Base> TraceShape;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace")
-	FName TraceSocket_Start = FName("");
+	FName TraceSocket_Start = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace")
-	FName TraceSocket_End = FName("");
+	FName TraceSocket_End = NAME_None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace|Socket Data")
+	EGASC_MeleeTrace_TraceObject TraceObject = EGASC_MeleeTrace_TraceObject::Weapon;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Melee Trace")
 	int32 TraceDensity = 1;
 
 	TWeakObjectPtr<UMeshComponent> SourceMeshComponent = nullptr;
+	
+	UPROPERTY()
 	AActor* InstigatorActor = nullptr;
+	
 	FCollisionShape TraceCollisionShape;
 	TArray<FVector> PreviousFrameSamples;
+	UPROPERTY()
 	TArray<AActor*> HitActors;
+	UPROPERTY()
 	TArray<AActor*> HitActors_PreviousFrames;
+	
 	TArray<FHitResult> HitResults_PreviousFrames;
 	
 	FGuid TraceId;
@@ -174,13 +193,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="GASCourse|MeleeTrace")
 	bool IsMeleeTraceInProgress(FGuid TraceId);
 
-	FGASC_MeleeTrace_Subsystem_Data CreateShapeDataFromRow(FGASC_MeleeTrace_TraceShapeData RowData);
+	FGASC_MeleeTrace_Subsystem_Data CreateShapeDataFromRow(const FGASC_MeleeTrace_TraceShapeData& RowData) const;
 
 	UFUNCTION(BlueprintCallable, Category="GASCourse|MeleeTrace")
 	bool CancelMeleeTrace(FGuid TraceId);
 
 	UFUNCTION()
-	TWeakObjectPtr<UMeshComponent> GetMeshComponent(AActor* Actor, const FName& StartSocketName, const FName& EndSocketName);
+	TWeakObjectPtr<UMeshComponent> GetMeshComponent(const AActor* Actor, const FGASC_MeleeTrace_Subsystem_Data& InTraceData);
 
 	virtual TStatId GetStatId() const override
 	{

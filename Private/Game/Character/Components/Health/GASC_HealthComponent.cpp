@@ -17,6 +17,7 @@ UGASC_HealthComponent::UGASC_HealthComponent()
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
 	SetIsReplicatedByDefault(true);
+	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
 }
 
 void UGASC_HealthComponent::BeginPlay()
