@@ -231,6 +231,16 @@ float AGASCourseCharacter::GetCurrentHealth() const
 	return 0.0f;
 }
 
+float AGASCourseCharacter::GetMaxHealth() const
+{
+	if (const UGASCourseHealthAttributeSet* BaseAttributeSet = GetAbilitySystemComponent()->GetSetChecked<UGASCourseHealthAttributeSet>())
+	{
+		return BaseAttributeSet->GetMaxHealth();
+	}
+	UE_LOG(LogTemp, Warning, TEXT("NO VALID ATTRIBUTE SET FOUND"));
+	return 0.0f;
+}
+
 void AGASCourseCharacter::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D

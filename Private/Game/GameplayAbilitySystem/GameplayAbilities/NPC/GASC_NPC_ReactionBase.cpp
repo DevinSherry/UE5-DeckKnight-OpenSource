@@ -17,15 +17,25 @@ void UGASC_NPC_ReactionBase::ActivateAbility(const FGameplayAbilitySpecHandle Ha
 
 void UGASC_NPC_ReactionBase::FaceInstigator()
 {
-	if (!CurrentEventData.Instigator)
+	AActor* Avatar = GetAvatarActorFromActorInfo();
+	const AActor* Instigator = Cast<AActor>(CurrentEventData.Instigator);
+
+	if (!Avatar || !Instigator)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("CurrentEventData.Instigator is NULL. Will not face instigator"));
-		return;	
+		return;
 	}
 
-	FVector InstigatorLocation = CurrentEventData.Instigator->GetActorLocation();
-	FVector TargetLocation = CurrentEventData.Target ? CurrentEventData.Target->GetActorLocation() : GetAvatarActorFromActorInfo()->GetActorLocation();
-	FVector DirectionVector = UKismetMathLibrary::GetDirectionUnitVector(TargetLocation, InstigatorLocation);
-	FRotator Rotation = UKismetMathLibrary::MakeRotFromX(DirectionVector);
-	GetAvatarActorFromActorInfo()->SetActorRotation(Rotation);
+	FVector ToInstigator = Instigator->GetActorLocation() - Avatar->GetActorLocation();
+	ToInstigator.Z = 0.f; // keep planar
+	ToInstigator.Normalize();
+
+	FRotator Wanted = ToInstigator.Rotation();
+
+	if (APawn* Pawn = Cast<APawn>(Avatar))
+	{
+		Avatar->GetRootComponent()->SetWorldRotation(Wanted);
+	}
+
+	// Fallback if no controller exists (rare)
+	Avatar->SetActorRotation(Wanted);
 }

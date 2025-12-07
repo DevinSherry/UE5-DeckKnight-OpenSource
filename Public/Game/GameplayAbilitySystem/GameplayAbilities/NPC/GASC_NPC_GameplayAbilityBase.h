@@ -22,5 +22,5 @@ public:
 	
 	UGASC_NPC_GameplayAbilityBase(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	virtual void OnGiveAbility(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) override;
-	
+	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
 };

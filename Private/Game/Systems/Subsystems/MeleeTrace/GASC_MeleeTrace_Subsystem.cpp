@@ -2,12 +2,10 @@
 
 
 #include "Game/Systems/Subsystems/MeleeTrace/GASC_MeleeTrace_Subsystem.h"
-#include "Game/Systems/Subsystems/MeleeTrace/Settings/GASC_MeleeSubsystem_Settings.h" 
 #include "KismetTraceUtils.h"
 #include "Game/Systems/Subsystems/MeleeTrace/Shapes/GASC_MeleeShape_Base.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionQueryParams.h"
-#include "Kismet/KismetMathLibrary.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "GASCourse/GASCourseCharacter.h"
@@ -78,6 +76,8 @@ bool UGASC_MeleeTrace_Subsystem::ShouldCreateSubsystem(UObject* Outer) const
 void UGASC_MeleeTrace_Subsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
+	MeleeTraceSettings = GetDefault<UGASC_MeleeSubsystem_Settings>();
+	check(MeleeTraceSettings);
 }
 
 void UGASC_MeleeTrace_Subsystem::DrawDebugMeleeTrace(const UObject* WorldContextObject,
@@ -89,13 +89,12 @@ void UGASC_MeleeTrace_Subsystem::DrawDebugMeleeTrace(const UObject* WorldContext
 	{
 		return;
 	}
-	
-	const UGASC_MeleeSubsystem_Settings* MeleeTraceSettings = GetDefault<UGASC_MeleeSubsystem_Settings>();
-	check(MeleeTraceSettings);
 
-	const FColor TraceColor = MeleeTraceSettings->MeleeTraceDebugColor;
-	const FColor TraceColor_Hit = MeleeTraceSettings->MeleeTraceHitDebugColor;
-	const float DebugLifeTime = MeleeTraceSettings->DebugDrawTime;
+	const UGASC_MeleeSubsystem_Settings* DebugMeleeTraceSettings = GetDefault<UGASC_MeleeSubsystem_Settings>();
+	check(DebugMeleeTraceSettings);
+	const FColor TraceColor = DebugMeleeTraceSettings->MeleeTraceDebugColor;
+	const FColor TraceColor_Hit = DebugMeleeTraceSettings->MeleeTraceHitDebugColor;
+	const float DebugLifeTime = DebugMeleeTraceSettings->DebugDrawTime;
 
 	if (MeleeTraceShape.IsSphere())
 	{
@@ -410,12 +409,13 @@ void UGASC_MeleeTrace_Subsystem::DrawDebugSweptBox(const UWorld* InWorld, FVecto
 
 void UGASC_MeleeTrace_Subsystem::RequestShapeMeleeTrace(AActor* Instigator, FGASC_MeleeTrace_Subsystem_Data TraceData, FGuid TraceId)
 {
-	FGASC_MeleeTrace_Subsystem_Data NewMeleeTraceRequest;
-	NewMeleeTraceRequest = TraceData;
+	FGASC_MeleeTrace_Subsystem_Data NewMeleeTraceRequest = TraceData;
 	NewMeleeTraceRequest.TraceId = TraceId;
 	NewMeleeTraceRequest.InstigatorActor = Instigator;
 	NewMeleeTraceRequest.TraceCollisionShape = NewMeleeTraceRequest.TraceShape->CreateCollisionShape();
 	NewMeleeTraceRequest.SourceMeshComponent = GetMeshComponent(Instigator, NewMeleeTraceRequest);
+	NewMeleeTraceRequest.SwingStartTime = GetWorld()->GetTimeSeconds();
+	NewMeleeTraceRequest.PerActorHitStamps.Reset();
 
 	GetTraceSamples(NewMeleeTraceRequest.SourceMeshComponent.Get(), TraceData.TraceDensity,
 		NewMeleeTraceRequest.TraceSocket_Start,
@@ -456,129 +456,187 @@ bool UGASC_MeleeTrace_Subsystem::CancelMeleeTrace(FGuid TraceId)
 void UGASC_MeleeTrace_Subsystem::ProcessMeleeTraces(float DeltaTime)
 {
 	const bool bShouldDrawDebug = GASCourse_MeleeSubSystemCVars::CvarEnableMeleeTracesDebug.GetValueOnGameThread();
-	const UGASC_MeleeSubsystem_Settings* MeleeTraceSettings = GetDefault<UGASC_MeleeSubsystem_Settings>();
-	check(MeleeTraceSettings);
-	
-
-	FCollisionQueryParams QueryParams;
-	QueryParams.bReturnPhysicalMaterial = true;
-	QueryParams.bReturnFaceIndex = true;
-	
+	TRACE_CPUPROFILER_EVENT_SCOPE(ProcessMeleeTraces);
 	FCollisionObjectQueryParams ObjectParams = ConfigureCollisionObjectParams(MeleeTraceSettings->CollisionObjectTypes);
-
-	for (FGASC_MeleeTrace_Subsystem_Data& ActiveMeleeTraceRequest : MeleeTraceRequests)
+	for (int32 i = MeleeTraceRequests.Num() - 1; i >= 0; --i)
 	{
-		if (ActiveMeleeTraceRequest.SourceMeshComponent == nullptr)
+		FGASC_MeleeTrace_Subsystem_Data& ActiveMeleeTraceRequest = MeleeTraceRequests[i];
+		if (!ActiveMeleeTraceRequest.InstigatorActor || ActiveMeleeTraceRequest.SourceMeshComponent == nullptr)
 		{
-			break;
+			MeleeTraceRequests.RemoveAt(i);
+			continue;
 		}
+		UMeshComponent* SourceMeshComponent = ActiveMeleeTraceRequest.SourceMeshComponent.Get();
+		if (!SourceMeshComponent)
+		{
+			MeleeTraceRequests.RemoveAtSwap(i);
+			continue;
+		}
+		
+		// Per-request query params (don’t early-return the whole function)
+		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(MeleeTrace), false);
+		QueryParams.bReturnPhysicalMaterial = true;
+		QueryParams.bReturnFaceIndex = true;
 		QueryParams.AddIgnoredActor(ActiveMeleeTraceRequest.InstigatorActor);
-		TArray<FHitResult> HitResults;
+		
 		TArray<FVector> TraceSamples;
-		GetTraceSamples(ActiveMeleeTraceRequest.SourceMeshComponent.Get(),
+		GetTraceSamples(
+			SourceMeshComponent,
 			ActiveMeleeTraceRequest.TraceDensity,
 			ActiveMeleeTraceRequest.TraceSocket_Start,
 			ActiveMeleeTraceRequest.TraceSocket_End,
 			TraceSamples);
-
-		//const FQuat OffsetRotation = ActiveMeleeTraceRequest.SourceMeshComponent->GetSocketRotation(ActiveMeleeTraceRequest.TraceSocket_Start).Quaternion();
-		FVector Direction = UKismetMathLibrary::GetDirectionUnitVector(ActiveMeleeTraceRequest.SourceMeshComponent->GetSocketLocation(ActiveMeleeTraceRequest.TraceSocket_Start),
-	ActiveMeleeTraceRequest.SourceMeshComponent->GetSocketLocation(ActiveMeleeTraceRequest.TraceSocket_End));
-		const FQuat Rotation = FQuat::FindBetweenVectors(FVector::UpVector, Direction);
-
-		for (int32 Index = 0; Index < TraceSamples.Num(); Index++)
+		
+		if (ActiveMeleeTraceRequest.PreviousFrameSamples.Num() != TraceSamples.Num())
 		{
-			HitResults.Reset();
-			FVector PreviousSample = ActiveMeleeTraceRequest.PreviousFrameSamples[Index];
-			if (PreviousSample.Equals(TraceSamples[Index]))
+			ActiveMeleeTraceRequest.PreviousFrameSamples = TraceSamples;
+		}
+		
+		// Per-frame results (actors list persists across frames so each trace hits an actor once)
+		ActiveMeleeTraceRequest.HitResults_PreviousFrames.Reset();
+		constexpr float MAX_SUBSTEP_DISTANCE = 50.0f;
+		for (int32 SampleIndex = 0; SampleIndex < TraceSamples.Num(); ++SampleIndex)
+		{
+			const FVector& PrevSample = ActiveMeleeTraceRequest.PreviousFrameSamples[SampleIndex];
+			const FVector& CurrSample = TraceSamples[SampleIndex];
+			
+			// Direction of motion for this sample
+			const FVector Delta = CurrSample - PrevSample;
+			float Distance = Delta.Size();
+			
+			// Determine number of substeps required
+			int32 NumSteps = FMath::CeilToInt(Distance / MAX_SUBSTEP_DISTANCE);
+			NumSteps = FMath::Max(NumSteps, 1);
+			
+			//FVector StepStart = PrevSample;
+			for (int32 StepIndex = 0; StepIndex < NumSteps; ++StepIndex)
 			{
-				PreviousSample += FVector::UpVector * UE_KINDA_SMALL_NUMBER;
-			}
-			const bool bHit = GetWorld()->SweepMultiByObjectType(HitResults,
-					PreviousSample, TraceSamples[Index],
-						Rotation,
-						ObjectParams,
-						ActiveMeleeTraceRequest.TraceCollisionShape,
-						QueryParams);
+				float Alpha1 = (float)StepIndex / NumSteps;
+				float Alpha2 = (float)(StepIndex + 1) / NumSteps;
 
-			if (bShouldDrawDebug)
-			{
-				DrawDebugMeleeTrace(ActiveMeleeTraceRequest.InstigatorActor,
-				ActiveMeleeTraceRequest.TraceCollisionShape,
-						FTransform(Rotation, ActiveMeleeTraceRequest.PreviousFrameSamples[Index]),
-						FTransform(Rotation, TraceSamples[Index]),
+				FVector P1 = FMath::Lerp(PrevSample, CurrSample, Alpha1);
+				FVector P2 = FMath::Lerp(PrevSample, CurrSample, Alpha2);
+
+				FVector SubDelta = P2 - P1;
+
+				FQuat Rotation;
+				if (!SubDelta.IsNearlyZero())
+				{
+					Rotation = FRotationMatrix::MakeFromZ(SubDelta.GetSafeNormal()).ToQuat();
+				}
+				else
+				{
+					Rotation = SourceMeshComponent->GetComponentQuat();
+				}
+				
+				TArray<FHitResult> HitResults;
+				const bool bHit = GetWorld()->SweepMultiByObjectType(
+					HitResults,
+					P1,
+					P2,
+					Rotation,
+					ObjectParams,
+					ActiveMeleeTraceRequest.TraceCollisionShape,
+					QueryParams);
+
+				if (bShouldDrawDebug)
+				{
+					DrawDebugMeleeTrace(
+						ActiveMeleeTraceRequest.InstigatorActor,
+						ActiveMeleeTraceRequest.TraceCollisionShape,
+						FTransform(Rotation, P1),
+						FTransform(Rotation, P2),
 						bHit,
 						HitResults);
-			}
-
+				}
+				
 				if (!bHit)
 				{
 					continue;
 				}
-
+				
 				for (const FHitResult& Hit : HitResults)
 				{
-					ActiveMeleeTraceRequest.HitResults_PreviousFrames.Add(Hit);
-				}
-			}
-		ActiveMeleeTraceRequest.PreviousFrameSamples = MoveTemp(TraceSamples);
-
-		for (FHitResult Hit : ActiveMeleeTraceRequest.HitResults_PreviousFrames)
-		{
-			if (ActiveMeleeTraceRequest.HitActors_PreviousFrames.Contains(Hit.GetActor()))
-			{
-				return;
-			}
-
-			ActiveMeleeTraceRequest.HitActors_PreviousFrames.Add(Hit.GetActor());
-			if (AGASCourseCharacter* InstigatorCharacter = Cast<AGASCourseCharacter>(ActiveMeleeTraceRequest.InstigatorActor))
-			{
-				UGASCourseAbilitySystemComponent* InstigatorASC = Cast<UGASCourseAbilitySystemComponent>(InstigatorCharacter->GetAbilitySystemComponent());
-				if (!InstigatorASC)
-				{
-					return;
-				}
-				AGASCourseCharacter* TargetCharacter = Cast<AGASCourseCharacter>(Hit.GetActor());
-				if (!TargetCharacter)
-				{
-					return;
-				}
-
-				UGASCourseAbilitySystemComponent* TargetASC = Cast<UGASCourseAbilitySystemComponent>(TargetCharacter->GetAbilitySystemComponent());
-				if (!TargetASC)
-				{
-					return;
-				}
+					AActor* HitActor = Hit.GetActor();
+					if (!HitActor)
+					{
+						continue;
+					}
 				
-				if (UGASC_DamagePipelineSubsystem* DamageSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
-				{
-					FHitContext HitContext;
-					HitContext.HitTarget = TargetCharacter;
-					HitContext.HitInstigator = InstigatorCharacter;
-					HitContext.OptionalSourceObject = nullptr;
-					HitContext.HitTargetTagsContainer = TargetASC->GetOwnedGameplayTags();
-					HitContext.HitInstigatorTagsContainer = InstigatorASC->GetOwnedGameplayTags();
-					HitContext.HitContextTagsContainer = FGameplayTagContainer::EmptyContainer;
-					HitContext.HitResult = Hit;
-					HitContext.HitTimeStamp = GetWorld()->GetTimeSeconds();
-					DamageSubsystem->OnHitEvent(HitContext);
+					float CurrentTime = GetWorld()->GetTimeSeconds();
+					if (ActiveMeleeTraceRequest.HitCooldownTime > 0.0f)
+					{
+						if (float* LastHitPtr = ActiveMeleeTraceRequest.PerActorHitStamps.Find(HitActor))
+						{
+							if (CurrentTime - *LastHitPtr < ActiveMeleeTraceRequest.HitCooldownTime)
+							{
+								continue;
+							}
+						}
+					}
+				
+					if (ActiveMeleeTraceRequest.HitActors_PreviousFrames.Contains(HitActor))
+					{
+						continue;
+					}
+				
+					// Record this actor as hit at this moment
+					ActiveMeleeTraceRequest.PerActorHitStamps.Add(HitActor, CurrentTime);
+				
+					// Mark actor as hit (prevents multiple hits per request)
+					ActiveMeleeTraceRequest.HitActors_PreviousFrames.Add(HitActor);
+				
+					// Save hit for debug or gameplay processing later
+					ActiveMeleeTraceRequest.HitResults_PreviousFrames.Add(Hit);
+				
+					// -- Apply damage / gameplay events once per actor per trace request --
+					if (auto* InstigatorCharacter = Cast<AGASCourseCharacter>(ActiveMeleeTraceRequest.InstigatorActor))
+					{
+						if (auto* InstigatorASC = Cast<UGASCourseAbilitySystemComponent>(InstigatorCharacter->GetAbilitySystemComponent()))
+						{
+							if (auto* TargetCharacter = Cast<AGASCourseCharacter>(HitActor))
+							{
+								if (auto* TargetASC = Cast<UGASCourseAbilitySystemComponent>(TargetCharacter->GetAbilitySystemComponent()))
+								{
+									// Damage pipeline (only once per actor)
+									if (auto* DamageSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+									{
+										FHitContext HitContext;
+										HitContext.HitTarget = TargetCharacter;
+										HitContext.HitInstigator = InstigatorCharacter;
+										HitContext.OptionalSourceObject = nullptr;
+										HitContext.HitTargetTagsContainer = &TargetASC->GetOwnedGameplayTags();
+										HitContext.HitInstigatorTagsContainer = &InstigatorASC->GetOwnedGameplayTags();
+										HitContext.HitContextTagsContainer = &FGameplayTagContainer::EmptyContainer;
+										HitContext.HitResult = Hit;
+										HitContext.HitTimeStamp = GetWorld()->GetTimeSeconds();
+
+										DamageSubsystem->OnHitEvent(HitContext);
+									}
+								
+									// Gameplay event data
+									FGameplayEventData OnHitPayload;
+									OnHitPayload.Instigator = InstigatorCharacter;
+									OnHitPayload.Target = HitActor;
+
+									auto* TargetDataHit = new FGameplayAbilityTargetData_SingleTargetHit(Hit);
+									OnHitPayload.TargetData.Add(TargetDataHit);
+
+									OnHitPayload.InstigatorTags.AppendTags(InstigatorASC->GetOwnedGameplayTags());
+									OnHitPayload.TargetTags.AppendTags(TargetASC->GetOwnedGameplayTags());
+
+									// Notify instigator
+									InstigatorASC->HandleGameplayEvent(Event_Gameplay_OnHit, &OnHitPayload);
+
+									// Notify target
+									OnHitPayload.EventTag = Event_Gameplay_Reaction_OnHit;
+									OnHitPayload.InstigatorTags.AddTag(Reaction_OnHit);
+									TargetASC->SendGameplayEventAsync(Event_Gameplay_OnHit, OnHitPayload);
+								}
+							}
+						}
+					}
 				}
-				/*
-				FGameplayEventData OnHitPayload;
-				OnHitPayload.Instigator = InstigatorCharacter;
-				OnHitPayload.Target = Hit.GetActor();
-				FGameplayAbilityTargetData_SingleTargetHit* TargetDataHit = new FGameplayAbilityTargetData_SingleTargetHit(Hit);
-				OnHitPayload.InstigatorTags.AppendTags(InstigatorASC->GetOwnedGameplayTags());
-				OnHitPayload.TargetTags.AppendTags(TargetASC->GetOwnedGameplayTags());
-				OnHitPayload.TargetData.Add(TargetDataHit);
-
-				//InstigatorASC->SendGameplayEventAsync(Event_Gameplay_OnHit, OnHitPayload);
-				InstigatorASC->HandleGameplayEvent(Event_Gameplay_OnHit, &OnHitPayload);
-
-				OnHitPayload.EventTag = Event_Gameplay_Reaction_OnHit;
-				OnHitPayload.InstigatorTags.AddTag(Reaction_OnHit);
-				TargetASC->SendGameplayEventAsync(Event_Gameplay_OnHit, OnHitPayload);
-				*/
 			}
 		}
 	}
@@ -625,7 +683,7 @@ void UGASC_MeleeTrace_Subsystem::GetTraceSamples(const UMeshComponent* MeshCompo
 	{
 		const float Alpha = static_cast<float>(Index) / static_cast<float>(TraceDensity);
 		const FVector Sample = FMath::Lerp(StartSampleLocation, EndSampleLocation, Alpha);
-		UE_LOG(LOG_GASC_MeleeTraceSubsystem, Log, TEXT("Sample: %s"), *Sample.ToString());
+		//UE_LOG(LOG_GASC_MeleeTraceSubsystem, Log, TEXT("Sample: %s"), *Sample.ToString());
 		OutSamples.Add(Sample);
 	}
 }
@@ -634,7 +692,7 @@ TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(cons
 {
 	if (Actor == nullptr)
 	{
-		UE_LOG(LOG_GASC_MeleeTraceSubsystem, Warning, TEXT("Actor is NULL!"));
+		UE_LOGFMT(LOG_GASC_MeleeTraceSubsystem, Warning, "Invalid Actor passed through {0}", __FUNCTION__);
 		return nullptr;
 	}
 
@@ -673,7 +731,7 @@ TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(cons
 		}
 
 	default:
-		UE_LOG(LOG_GASC_MeleeTraceSubsystem, Warning, TEXT("No Skeletal Mesh Component found!"));
+		UE_LOGFMT(LOG_GASC_MeleeTraceSubsystem, Warning, "No skeletal mesh component found {0}", __FUNCTION__);
 		return nullptr;
 		
 	}
@@ -736,7 +794,7 @@ FGASC_MeleeTrace_Subsystem_Data UGASC_MeleeTrace_Subsystem::CreateShapeDataFromR
 
 	default:
 		// Fallback case (optional, depending on your enum design)
-			UE_LOG(LOG_GASC_MeleeTraceSubsystem, Warning, TEXT("Unknown Trace Shape!"));
+			UE_LOGFMT(LOG_GASC_MeleeTraceSubsystem, Warning, "Unknown Trace Shape found in {0}", __FUNCTION__);
 		break;
 
 	}

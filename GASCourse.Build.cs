@@ -24,7 +24,7 @@ public class GASCourse : ModuleRules
 			"NavigationSystem",
 			"TargetingSystem",
 			"ModelViewViewModel",
-			"PropertyBindingUtils"
+			"NiagaraUIRenderer"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]

@@ -117,7 +117,7 @@ void UGASCStatusEffectListenerComp::InitializeComponent()
 	Super::InitializeComponent();
 }
 
-void UGASCStatusEffectListenerComp::BeginReplication()
+void UGASCStatusEffectListenerComp::OnReplicationStartedForIris(const FOnReplicationStartedParams& OnReplicationStartedParams)
 {
-	Super::BeginReplication();
+	Super::OnReplicationStartedForIris(OnReplicationStartedParams);
 }

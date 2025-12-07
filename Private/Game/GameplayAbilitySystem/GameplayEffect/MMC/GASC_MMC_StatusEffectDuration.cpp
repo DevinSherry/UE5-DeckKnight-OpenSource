@@ -18,7 +18,7 @@ UGASC_MMC_StatusEffectDuration::UGASC_MMC_StatusEffectDuration()
 
 	RelevantAttributesToCapture.Add(DurationMultiplierAttributeDef);
 	RelevantAttributesToCapture.Add(DurationReductionMultiplierAttributeDef);
-}
+} 
 
 float UGASC_MMC_StatusEffectDuration::CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const
 {
@@ -42,5 +42,6 @@ float UGASC_MMC_StatusEffectDuration::CalculateBaseMagnitude_Implementation(cons
 
 	//TODO: Research to see if Reduction <= 0.0f if we can block the effect from being granted in the first place?
 	//TODO: Or add/remove immunity tag dynamically based on duration reduction multiplier?
+	UE_LOGFMT(LogTemp, Warning, "Reduction: %.2f");
 	return Reduction;
 }

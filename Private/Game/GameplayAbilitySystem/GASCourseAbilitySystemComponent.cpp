@@ -444,12 +444,13 @@ void UGASCourseAbilitySystemComponent::WaitForAbilityCooldownEnd(UGameplayAbilit
 	}
 }
 
-void UGASCourseAbilitySystemComponent::SendGameplayEventAsync(FGameplayTag EventTag, const FGameplayEventData& EventData)
+void UGASCourseAbilitySystemComponent::SendGameplayEventAsync(FGameplayTag EventTag, const FGameplayEventData& EventData) const
 {
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(SendGameplayEventAsync);
 	
-	TWeakObjectPtr<UGASCourseAbilitySystemComponent> WeakThis(this);
+	TWeakObjectPtr<UGASCourseAbilitySystemComponent> WeakThis = const_cast<UGASCourseAbilitySystemComponent*>(this);
+
 	FGameplayEventData EventDataCopy = EventData;
 	
 	UE::Tasks::Launch(

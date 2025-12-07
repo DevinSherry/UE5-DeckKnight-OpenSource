@@ -22,6 +22,7 @@ void UGASC_MeleeTrace_NotifyState::NotifyBegin(USkeletalMeshComponent* MeshComp,
 					if (FGASC_MeleeTrace_TraceShapeData* RowData = MeleeTraceRowHandle.GetRow<FGASC_MeleeTrace_TraceShapeData>("Context"))
 					{
 						MeleeTraceSubsystemData = MeleeTrace_Subsystem->CreateShapeDataFromRow(*RowData);
+						MeleeTraceSubsystemData.HitCooldownTime = HitCooldown;
 						MeleeTrace_Subsystem->RequestShapeMeleeTrace(MeshComp->GetOwner(), MeleeTraceSubsystemData, MeleeTraceNotifyID);
 					}
 				}

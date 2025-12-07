@@ -287,9 +287,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Transient, Category="GASCourse|Ability|Input")
 	FVector CachedInputDirection = FVector::ZeroVector;
 
-	UPROPERTY()
-	TObjectPtr<UGASC_DamagePipelineSubsystem> DamagePipelineSubsystem;
-
 	UFUNCTION()
 	void OnHitApplied(const FHitContext& HitContext);
 

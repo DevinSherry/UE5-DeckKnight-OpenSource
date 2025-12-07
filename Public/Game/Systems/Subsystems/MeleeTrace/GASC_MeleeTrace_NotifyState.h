@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "GASC_MeleeTrace_Subsystem.h"
 #include "Animation/AnimNotifies/AnimNotifyState.h"
-#include "Shapes/GASC_MeleeShape_Base.h"
 #include "GASC_MeleeTrace_NotifyState.generated.h"
 
 /**
@@ -30,6 +28,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Melee Trace", meta = (DataTable = "FGASC_MeleeTrace_TraceShapeData"))
 	FDataTableRowHandle MeleeTraceRowHandle;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Melee Trace")
+	float HitCooldown = 0.2f;
 private:
 
 	FGuid MeleeTraceNotifyID;

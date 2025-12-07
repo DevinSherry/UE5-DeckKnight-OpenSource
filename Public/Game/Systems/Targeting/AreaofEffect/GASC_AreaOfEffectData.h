@@ -5,9 +5,9 @@
 #include "GASC_TargetingSelectionTask_AOE.h"
 #include "ScalableFloat.h"
 #include "Engine/DataAsset.h"
-//#include "Game/BlueprintLibraries/GameplayAbilitySystem/GASCourseASCBlueprintLibrary.h"
 #include "GASC_TargetingPreset_AOE.h"
 #include "Game/BlueprintLibraries/GameplayAbilitySystem/GASCourseASCBlueprintLibrary.h"
+#include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
 #include "TargetingSystem/TargetingPreset.h"
 #include "GASC_AreaOfEffectData.generated.h"
 
@@ -46,8 +46,8 @@ public:
 	 * Used to configure the damage-related properties applied when the area of effect
 	 * type is set to damage. Includes settings specific to damage calculations.
 	 */
-	UPROPERTY(EditDefaultsOnly, Category="GASCourse|AreaOfEffect", meta=(EditCondition="AreaOfEffectType == EGASC_AreaOfEffectType::Damage", EditConditionHides))
-	FDamageContext AreaOfEffectDamageContext;
+	UPROPERTY(EditDefaultsOnly, Category="GASCourse|AreaOfEffect")
+	FDamagePipelineContext AreaOfEffectDamagePipelineContext;
 
 	/**
 	 * The targeting preset is used to gather targets in range in which the area of effect
@@ -152,6 +152,8 @@ public:
 
 #if WITH_EDITOR
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+	
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 
 protected:

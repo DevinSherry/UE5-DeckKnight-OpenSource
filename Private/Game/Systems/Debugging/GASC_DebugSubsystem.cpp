@@ -7,6 +7,7 @@
 #include "Game/Systems/Debugging/Panels/FGASCAttributesPanel.h"
 #include "Game/Systems/Debugging/Panels/FGASC_ActiveCardEnergyXPHistoryPanel.h"
 #include "Game/Systems/Debugging/Panels/FGASC_WaveManagerPanel.h"
+#include "Game/Systems/Debugging/Panels/GASCDamageEventsPanel.h"
 
 void UGASC_DebugSubsystem::Tick(float DeltaTime)
 {
@@ -29,6 +30,7 @@ void UGASC_DebugSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	DebugHub.RegisterDebugPanel(MakeShared<FGASCAttributesPanel>());
 	DebugHub.RegisterDebugPanel(MakeShared<FGASC_ActiveCardEnergyXPHistoryPanel>());
 	DebugHub.RegisterDebugPanel(MakeShared<FGASC_WaveManagerPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASCDamageEventsPanel>());
 }
 
 void UGASC_DebugSubsystem::Deinitialize()

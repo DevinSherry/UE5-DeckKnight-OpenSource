@@ -49,6 +49,6 @@ protected:
 	virtual void Deactivate() override;
 
 	virtual void InitializeComponent() override;
-
-	virtual void BeginReplication() override;
+	
+	virtual void OnReplicationStartedForIris(const FOnReplicationStartedParams&) override;
 };

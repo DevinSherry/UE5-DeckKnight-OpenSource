@@ -288,9 +288,10 @@ void AGASCoursePlayerCharacter::Look(const FInputActionValue& Value)
 
 	if (Controller != nullptr)
 	{
+		float RotationSensitivity = CameraSettingsData->CameraRotationSpeedMultiplier;
 		// add yaw and pitch input to controller
-		AddControllerYawInput(LookAxisVector.X);
-		AddControllerPitchInput(LookAxisVector.Y);
+		AddControllerYawInput(LookAxisVector.X * RotationSensitivity);
+		AddControllerPitchInput(LookAxisVector.Y * RotationSensitivity);
 	}
 	Input_RotateCameraAxis(Value);
 }

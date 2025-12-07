@@ -2,7 +2,6 @@
 
 
 #include "Game/GameplayAbilitySystem/Tasks/WaitOverlap/GASCourse_WaitOverlapTask.h"
-
 #include "Game/Character/NPC/GASCourseNPC_Base.h"
 #include "Components/SphereComponent.h"
 

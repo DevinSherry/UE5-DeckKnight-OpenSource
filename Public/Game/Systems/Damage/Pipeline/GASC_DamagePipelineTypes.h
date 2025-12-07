@@ -1,103 +1,182 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// GASC_DamagePipelineTypes.h
+// Clean version – contains ONLY types, contexts, enums
 
 #pragma once
 
 #include "GameplayTagContainer.h"
+#include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GASC_DamagePipelineTypes.generated.h"
+
+// Log
+DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_DamagePipelineSubsystem, Log, All);
 
 /**
  * @enum EHitEventType
- * @brief Enumerates different types of hit events in a system.
- *
- * This enumeration defines the types of hit-related events that can occur, providing
- * a distinction between events where a hit is received and those where a hit is applied.
- *
- * It is commonly used in game systems, damage processing pipelines, or collision systems to
- * handle and differentiate between incoming and outgoing hit events.
- *
- * - OnHitReceived: Represents an event where a hit is received by an object or entity.
- * - OnHitApplied: Represents an event where a hit is applied to another object or entity.
  */
 UENUM(BlueprintType)
 enum EHitEventType
 {
-	OnHitReceived,
-	OnHitApplied
+	OnHitReceived UMETA(DisplayName="On Hit Received"),
+	OnHitApplied  UMETA(DisplayName="On Hit Applied")
+};
+
+UENUM(BlueprintType)
+enum EOnDamageEventType
+{
+	OnDamageReceived UMETA(DisplayName="On Damage Received"),
+	OnDamageApplied  UMETA(DisplayName="On Damage Applied")
+};
+
+UENUM(BlueprintType)
+enum EOnHealingEventType
+{
+	OnHealingReceived UMETA(DisplayName="On Healing Received"),
+	OnHealingApplied  UMETA(DisplayName="On Healing Applied")
+};
+
+UENUM(BlueprintType)
+enum EGASC_DamagePipelineType
+{
+	Damage  UMETA(DisplayName="Damage"),
+	Healing UMETA(DisplayName="Healing")
 };
 
 /**
- * @class FHitContext
- * @brief Represents the context of a hit or interaction in a physics or collision system.
- *
- * The FHitContext class provides detailed information about a hit event, such as position,
- * direction, surface properties, and additional metadata related to the hit. It is typically
- * used in collision detection, ray tracing, or other systems where hit information must
- * be queried and processed.
- *
- * This class is often utilized in game development, simulations, and physics engines to handle
- * interactions between objects or responses to collision events.
- *
- * The specific properties and methods of this class offer access to hit data like impact point,
- * normal vector, collision object references, and other relevant details to further process
- * the hit results or apply effects.
+ * Lightweight hit context – no heavy copies.
  */
-
-USTRUCT(Blueprintable)
+USTRUCT(BlueprintType)
 struct FHitContext
 {
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
-	TWeakObjectPtr<class AActor> HitTarget = nullptr;
+	TWeakObjectPtr<AActor> HitTarget = nullptr;
 	
 	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
-	TWeakObjectPtr<class AActor> HitInstigator = nullptr;
+	TWeakObjectPtr<AActor> HitInstigator = nullptr;
 	
 	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
-	TWeakObjectPtr<class AActor> OptionalSourceObject = nullptr;
+	TWeakObjectPtr<AActor> OptionalSourceObject = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
-	FGameplayTagContainer HitTargetTagsContainer;
-	
-	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
-	FGameplayTagContainer HitInstigatorTagsContainer;
-	
-	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
-	FGameplayTagContainer HitContextTagsContainer;
+	// Non-UPROPERTY (internal only)
+	const FGameplayTagContainer* HitTargetTagsContainer     = nullptr;
+	const FGameplayTagContainer* HitInstigatorTagsContainer = nullptr;
+	const FGameplayTagContainer* HitContextTagsContainer    = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
+	/** SAFELY STORED HitResult */
+	UPROPERTY(BlueprintReadOnly, Category="Hit Context")
 	FHitResult HitResult;
-	
+
 	UPROPERTY(BlueprintReadOnly, Category = "Hit Context")
 	float HitTimeStamp = 0.0f;
 
-	FHitContext() {}
+	FHitContext() = default;
 };
 
+/**
+ * Damage + Healing modification context.
+ */
 USTRUCT(BlueprintType)
-struct FHitLogEntry
+struct FDamageModificationContext
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly, Category="Damage Pipeline Context")
+	FHitContext HitContext;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	TEnumAsByte<EGASC_DamagePipelineType> DamagePipelineType = EGASC_DamagePipelineType::Damage;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	FGameplayTag DamageType;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	float NewValue = 0.0f;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	float DeltaValue = 0.0f;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	bool bCriticalModification = false;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	bool bDamageModificationKilled = false;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	bool bModificationOverTime = false;
+	
+	FDamageModificationContext() = default;
+};
+
+/**
+ * Effect-side context for applying damage/heal.
+ */
+USTRUCT(BlueprintType)
+struct FDamagePipelineContext
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FHitResult HitResult;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Categories="Damage.Type"))
+	FGameplayTag DamageType = DamageType_Physical;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FGameplayTagContainer GrantedTags;
+};
+
+/**
+ * Over-time effect tuning.
+ */
+USTRUCT(BlueprintType)
+struct FDamagePipelineEffectOverTimeContext
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float EffectPeriod = -1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float EffectDuration = -1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bApplyValueOverTotalDuration = false;
+};
+
+/**
+ * Logging entry – used for debug UI / pipeline logging.
+ */
+USTRUCT(BlueprintType)
+struct FDamageLogEntry
 {
 	GENERATED_BODY()
 
-	FGuid HitTargetID;
-	FGuid HitInstigatorID;
+	uint32 DamageTargetID     = 0;
+	uint32 DamageInstigatorID = 0;
+	uint32 OptionalObjectID   = 0;
 
-	uint32 HitID = 0;
-	float HitTimeStamp = 0.0f;
+	uint32 DamageID          = 0;
+	float  DamageTimeStamp   = 0.0f;
 	FHitResult HitResult;
 
 	FString HitTargetName;
 	FString HitInstigatorName;
-	FString HitTargetClassName;
-	FString HitInstigatorClassName;
+	FString OptionalSourceObjectName;
 
 	FGameplayTagContainer HitTargetTagsContainer;
 	FGameplayTagContainer HitInstigatorTagsContainer;
 	FGameplayTagContainer HitContextTagsContainer;
+	
+	TMap<FString, float> Attributes;
+	float BaseDamageValue = 0.0f;
+	float ModifiedDamageValue = 0.0f;
+	float FinalDamageValue = 0.0f;
+	
+	bool bIsDamageEffect = false;
+	bool bIsCriticalHit = false;
+	bool bIsOverTimeEffect = false;
+	bool bIsSimulatedDamage = false;
 
-	FHitLogEntry() {}
+	FDamageLogEntry() = default;
 };
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitApplied, const FHitContext&, OutHitContext);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitReceived, const FHitContext&, OutHitContext);
-DECLARE_DYNAMIC_DELEGATE_OneParam(FOnHitApplied_Event, const FHitContext&, OutHitContext);

@@ -8,6 +8,7 @@
 #include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
+#include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
 
 struct GASCourseHealingStatics
 {
@@ -16,18 +17,14 @@ struct GASCourseHealingStatics
 	DECLARE_ATTRIBUTE_CAPTUREDEF(ElementalDamageHealingCoefficient)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(PhysicalDamageHealingCoefficient)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(AllDamageHealingCoefficient)
-	DECLARE_ATTRIBUTE_CAPTUREDEF(CurrentHealth)
-	DECLARE_ATTRIBUTE_CAPTUREDEF(MaxHealth)
 
 	GASCourseHealingStatics()
 	{
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, IncomingHealing, Source, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient, Target, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient, Target, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, PhysicalDamageHealingCoefficient, Target, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, AllDamageHealingCoefficient, Target, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, CurrentHealth, Target, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, MaxHealth, Target, true);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient, Target, false);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient, Target, false);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, PhysicalDamageHealingCoefficient, Target, false);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, AllDamageHealingCoefficient, Target, false);
 	}
 };
 
@@ -39,118 +36,164 @@ static const GASCourseHealingStatics& HealingStatics()
 
 UGASCourseHealingExecution::UGASCourseHealingExecution()
 {
-	RelevantAttributesToCapture.Add(HealingStatics().IncomingHealingDef);
+	//RelevantAttributesToCapture.Add(HealingStatics().IncomingHealingDef);
 	RelevantAttributesToCapture.Add(HealingStatics().StatusDamageHealingCoefficientDef);
 	RelevantAttributesToCapture.Add(HealingStatics().ElementalDamageHealingCoefficientDef);
 	RelevantAttributesToCapture.Add(HealingStatics().PhysicalDamageHealingCoefficientDef);
 	RelevantAttributesToCapture.Add(HealingStatics().AllDamageHealingCoefficientDef);
-	RelevantAttributesToCapture.Add(HealingStatics().CurrentHealthDef);
-	RelevantAttributesToCapture.Add(HealingStatics().MaxHealthDef);
 }
 
-void UGASCourseHealingExecution::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams,
-	FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const
+void UGASCourseHealingExecution::Execute_Implementation(
+    const FGameplayEffectCustomExecutionParameters& ExecutionParams,
+    FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const
 {
-	UGASCourseAbilitySystemComponent* TargetAbilitySystemComponent = Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetTargetAbilitySystemComponent());
-	UGASCourseAbilitySystemComponent* SourceAbilitySystemComponent = Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetSourceAbilitySystemComponent());
+	const UGASCourseAbilitySystemComponent* TargetASC =
+		Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetTargetAbilitySystemComponent());
+	const UGASCourseAbilitySystemComponent* SourceASC =
+		Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetSourceAbilitySystemComponent());
 
-	AActor* SourceActor = SourceAbilitySystemComponent ? SourceAbilitySystemComponent->GetAvatarActor() : nullptr;
-	AActor* TargetActor = TargetAbilitySystemComponent ? TargetAbilitySystemComponent->GetAvatarActor() : nullptr;
+	AActor* SourceActor = SourceASC ? SourceASC->GetAvatarActor() : nullptr;
+	AActor* TargetActor = TargetASC ? TargetASC->GetAvatarActor() : nullptr;
 
 	const FGameplayEffectSpec& Spec = ExecutionParams.GetOwningSpec();
-	// Gather the tags from the source and target as that can affect which buffs should be used
+
+	// Gather tags once
 	const FGameplayTagContainer* SourceTags = Spec.CapturedSourceTags.GetAggregatedTags();
 	const FGameplayTagContainer* TargetTags = Spec.CapturedTargetTags.GetAggregatedTags();
 
-	FAggregatorEvaluateParameters EvaluationParameters;
-	EvaluationParameters.SourceTags = SourceTags;
-	EvaluationParameters.TargetTags = TargetTags;
-
-	/**
-	 * Find and store relevant attributes for health and healing coefficients.
-	 */
+	FAggregatorEvaluateParameters EvalParams;
+	EvalParams.SourceTags = SourceTags;
+	EvalParams.TargetTags = TargetTags;
 	
-	float Healing = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().IncomingHealingDef, EvaluationParameters, Healing);
-	Healing += FMath::Max<float>(Spec.GetSetByCallerMagnitude(Data_IncomingHealing, true, -1.0f), 0.0f);
+	// ==========================
+	// 0. Instantiate Debug log entry
+	// ==========================
+	
+	FGameplayEffectContextHandle ContextHandle = ExecutionParams.GetOwningSpec().GetEffectContext();
+	FGASCourseGameplayEffectContext* GASCourseContext = (FGASCourseGameplayEffectContext*)ContextHandle.Get();
+	GASCourseContext->DamageLogEntry.HitInstigatorName = SourceActor->GetName();
+	GASCourseContext->DamageLogEntry.HitTargetName = TargetActor->GetName();
+	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(*SourceTags);
+	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(*TargetTags);
+	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec.DynamicGrantedTags);
+	GASCourseContext->DamageLogEntry.DamageInstigatorID = SourceActor->GetUniqueID();
+	GASCourseContext->DamageLogEntry.DamageTargetID = TargetActor->GetUniqueID();
 
-	float StatusHealingCoefficient = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().StatusDamageHealingCoefficientDef, EvaluationParameters, StatusHealingCoefficient);
+	// ==========================
+	// 1. BASE HEAL AMOUNT
+	// ==========================
 
-	float ElementalHealingCoefficient = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().ElementalDamageHealingCoefficientDef, EvaluationParameters, ElementalHealingCoefficient);
+	// SetByCaller is usually your primary knob -> add it in
+	const float Healing = FMath::Max(
+		Spec.GetSetByCallerMagnitude(Data_IncomingHealing, true, -1.0f),
+		0.0f);
 
-	float PhysicalHealingCoefficient = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().PhysicalDamageHealingCoefficientDef, EvaluationParameters, PhysicalHealingCoefficient);
+	// If still zero or negative → hard early out, no need to calculate anything else
+	GASCourseContext->DamageLogEntry.BaseDamageValue = Healing;
+	if (Healing <= 0.f)
+	{
+		return;
+	}
+
+	// ==========================
+	// 2. DAMAGE TYPE TAGS
+	// ==========================
+	// Instead of building a new container, use a reference to existing dynamic tags.
+	const FGameplayTagContainer& DynamicTags = Spec.DynamicGrantedTags;
+
+	const bool bHasStatus    = DynamicTags.HasTag(DamageType_Status);
+	const bool bHasPhysical  = DynamicTags.HasTag(DamageType_Physical);
+	const bool bHasElemental = DynamicTags.HasTag(DamageType_Elemental);
+
+	// If no specific damage types, we only need AllHealingCoefficient.
+	const bool bHasSpecificType =
+		bHasStatus || bHasPhysical || bHasElemental;
+
+	// ==========================
+	// 3. CAPTURE ONLY NEEDED COEFFICIENTS
+	// ==========================
 
 	float AllHealingCoefficient = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().AllDamageHealingCoefficientDef, EvaluationParameters, AllHealingCoefficient);
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+		HealingStatics().AllDamageHealingCoefficientDef, EvalParams, AllHealingCoefficient);
+	GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().AllDamageHealingCoefficientProperty->GetName(), 
+	AllHealingCoefficient);
 
-	float CurrentHealth = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().CurrentHealthDef, EvaluationParameters, CurrentHealth);
-	
-	float MaxHealth = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(HealingStatics().MaxHealthDef, EvaluationParameters, MaxHealth);
-	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	float StatusHealingCoefficient    = 0.0f;
+	float ElementalHealingCoefficient = 0.0f;
+	float PhysicalHealingCoefficient  = 0.0f;
 
-	//Find and store relevant damage type gameplay tags for reference in coefficient calculation.
-	FGameplayTagContainer DamageTypeTags;
-	Spec.GetAllGrantedTags(DamageTypeTags);
-	
+	if (bHasSpecificType)
+	{
+		if (bHasStatus)
+		{
+			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+				HealingStatics().StatusDamageHealingCoefficientDef, EvalParams, StatusHealingCoefficient);
+			GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().StatusDamageHealingCoefficientProperty->GetName(), 
+				StatusHealingCoefficient);
+		}
+
+		if (bHasElemental)
+		{
+			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+				HealingStatics().ElementalDamageHealingCoefficientDef, EvalParams, ElementalHealingCoefficient);
+			GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().ElementalDamageHealingCoefficientProperty->GetName(), 
+			ElementalHealingCoefficient);
+		}
+
+		if (bHasPhysical)
+		{
+			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+				HealingStatics().PhysicalDamageHealingCoefficientDef, EvalParams, PhysicalHealingCoefficient);
+			GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().PhysicalDamageHealingCoefficientProperty->GetName(), 
+			PhysicalHealingCoefficient);
+		}
+	}
+
+	// ==========================
+	// 5. COEFFICIENT APPLICATION
+	// ==========================
 	float TotalHealing = 0.0f;
-	if (DamageTypeTags.IsEmpty())
+
+	if (!bHasSpecificType)
 	{
 		TotalHealing = Healing + (Healing * AllHealingCoefficient);
 	}
 	else
 	{
-		if(DamageTypeTags.HasTag(DamageType_Status))
+		if (bHasStatus)
 		{
 			TotalHealing += Healing * StatusHealingCoefficient;
 		}
-	
-		if(DamageTypeTags.HasTag(DamageType_Physical))
+		if (bHasPhysical)
 		{
 			TotalHealing += Healing * PhysicalHealingCoefficient;
 		}
-	
-		if(DamageTypeTags.HasTag(DamageType_Elemental))
+		if (bHasElemental)
 		{
 			TotalHealing += Healing * ElementalHealingCoefficient;
 		}
-	
-		TotalHealing += (Healing * AllHealingCoefficient);
-	}
-	
-	if (TotalHealing > 0.f)
-	{
-		OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(HealingStatics().IncomingHealingProperty, EGameplayModOp::Additive, TotalHealing));
-		
-		// Broadcast life steal event to Target ASC
-		if (TargetAbilitySystemComponent && CurrentHealth != MaxHealth)
-		{
-			FGameplayEventData LifeStealDealtPayload;
-			LifeStealDealtPayload.Instigator = SourceActor;
-			LifeStealDealtPayload.Target = TargetActor;
-			LifeStealDealtPayload.EventMagnitude = TotalHealing;
-			LifeStealDealtPayload.ContextHandle = Spec.GetContext();
-			LifeStealDealtPayload.InstigatorTags = Spec.DynamicGrantedTags;
-			
-			TargetAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnHealing, &LifeStealDealtPayload);
 
-			//Send healed value to target to slingshot to player UI
-			if (TargetActor->IsA(AGASCourseNPC_Base::StaticClass()))
-			{
-				FGameplayEventData TargetHealedPayload;
-				TargetHealedPayload.Instigator = SourceAbilitySystemComponent->GetAvatarActor();
-				TargetHealedPayload.Target = TargetAbilitySystemComponent->GetAvatarActor();
-				TargetHealedPayload.EventMagnitude = TotalHealing > (MaxHealth - CurrentHealth) ? (MaxHealth - CurrentHealth) : TotalHealing;
-				TargetHealedPayload.ContextHandle = Spec.GetContext();
-				TargetHealedPayload.InstigatorTags = Spec.DynamicGrantedTags;
-				TargetHealedPayload.InstigatorTags.AddTag(DamageType_Healing);
-			
-				TargetAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnTargetHealed, &TargetHealedPayload);
-			}
-		}
+		TotalHealing += Healing * AllHealingCoefficient;
 	}
+
+	if (TotalHealing <= 0.f)
+	{
+		return;
+	}
+	
+	if (TargetActor!=SourceActor)
+	{
+		TotalHealing = Healing;
+	}
+	
+	GASCourseContext->DamageLogEntry.ModifiedDamageValue = TotalHealing;
+
+	// ==========================
+	// 6. APPLY TO ATTRIBUTE
+	// ==========================
+	OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(
+		HealingStatics().IncomingHealingProperty,
+		EGameplayModOp::Additive,
+		TotalHealing));
 }

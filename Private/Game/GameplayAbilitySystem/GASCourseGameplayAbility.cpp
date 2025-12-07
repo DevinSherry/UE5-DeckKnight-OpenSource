@@ -10,7 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "Game/GameplayAbilitySystem/GameplayAbilities/GASC_AbilityParamsObject.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/GameplayAbilitySystem/Tasks/DamagePipeline/GASC_OnHitEventTask.h"
 #include "StructUtils/PropertyBag.h"
 
 DEFINE_LOG_CATEGORY(LOG_GASC_GameplayAbility);
@@ -215,16 +215,17 @@ void UGASCourseGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 	{
 		CommitAbility(Handle, ActorInfo, ActivationInfo);
 	}
-
-	if (UWorld* World = GetWorld())
-	{
-		DamagePipelineSubsystem = World->GetSubsystem<UGASC_DamagePipelineSubsystem>();
-		if (DamagePipelineSubsystem)
-		{
-			DamagePipelineSubsystem->OnHitAppliedDelegateCallback.AddDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
-			DamagePipelineSubsystem->OnHitReceivedDelegateCallback.AddDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
-		}
-	}
+	
+	//Wait for On Hit Applied Task Event
+	UGASC_OnHitEventTask* WaitForOnHitAppliedEvent = UGASC_OnHitEventTask::WaitOnHitEvent(this, GetAvatarActorFromActorInfo(), EHitEventType::OnHitApplied);
+	WaitForOnHitAppliedEvent->OnHitDelegate.AddDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
+	WaitForOnHitAppliedEvent->ReadyForActivation();
+	
+	//Wait for On Hit Received Task Event
+	UGASC_OnHitEventTask* WaitForOnHitReceivedEvent = UGASC_OnHitEventTask::WaitOnHitEvent(this, GetAvatarActorFromActorInfo(), EHitEventType::OnHitReceived);
+	WaitForOnHitReceivedEvent->OnHitDelegate.AddDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
+	WaitForOnHitReceivedEvent->ReadyForActivation();
+	
 	
 	CachedInputDirection = GetInputDirection();
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -235,12 +236,6 @@ void UGASCourseGameplayAbility::EndAbility(const FGameplayAbilitySpecHandle Hand
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
-
-	if (DamagePipelineSubsystem)
-	{
-		DamagePipelineSubsystem->OnHitAppliedDelegateCallback.RemoveDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
-		DamagePipelineSubsystem->OnHitReceivedDelegateCallback.RemoveDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
-	}
 }
 
 bool UGASCourseGameplayAbility::CheckCost(const FGameplayAbilitySpecHandle Handle,
@@ -546,15 +541,11 @@ FVector UGASCourseGameplayAbility::GetInputDirection() const
 	const AGASCoursePlayerCharacter* OwningPlayerCharacter = GetGASCouresPlayerCharacterFromActorInfo();
 	if (!OwningPlayerCharacter)
 	{
-		UE_LOG(LOG_GASC_GameplayAbility, Warning, TEXT("Invalid Player Character Owner: %s. Returning FVector(0.0) for input direction"),
-			*GetPathNameSafe(this));
 		return FVector::ZeroVector;
 	}
 	const UCharacterMovementComponent* CharacterMovementComponent = Cast<UCharacterMovementComponent>(GetActorInfo().MovementComponent);
 	if (!CharacterMovementComponent)
 	{
-		UE_LOG(LOG_GASC_GameplayAbility, Warning, TEXT("Invalid Character Movement Component: %s. Returning FVector(0.0) for input direction"),
-	*GetPathNameSafe(this));
 		return FVector::ZeroVector;
 	}
 
@@ -563,8 +554,6 @@ FVector UGASCourseGameplayAbility::GetInputDirection() const
 	{
 		if (CharacterMovementComponent->GetLastInputVector().GetSafeNormal().IsNearlyZero())
 		{
-			UE_LOG(LOG_GASC_GameplayAbility, Log, TEXT("Input Vector Nearly 0.0f %s. Returning owning character forward direction instead."),
-				*GetPathNameSafe(this));
 			return FVector::ZeroVector;
 		}
 	}
@@ -576,7 +565,6 @@ FVector UGASCourseGameplayAbility::GetInputDirection() const
 		{
 			return FVector::ZeroVector;
 		}
-		UE_LOG(LogTemp, Warning, TEXT("GAMEPLAY ABILITY: Buffered Movement Input: %s"), *BufferedMovementInput.ToString())
 		FVector MovementVector = FVector(BufferedMovementInput.Y, BufferedMovementInput.X, 0.0f);
 		return GetControllerFromActorInfo()->GetControlRotation().RotateVector(MovementVector).GetSafeNormal();
 	}

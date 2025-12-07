@@ -6,6 +6,7 @@
 #include "AbilitySystemComponent.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
 
+
 /**
  * @class FGASCAttributesPanel
  * @brief Represents a panel for managing attributes in the FGASC system.

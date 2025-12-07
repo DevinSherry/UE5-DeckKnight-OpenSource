@@ -8,6 +8,10 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "Game/Systems/CardEnergy/GASCourseCardEnergyExecution.h"
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
+#include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
+#include "Game/Systems/Damage/Debug/DamagePipelineDebugSubsystem.h"
 
 UGASCourseHealthAttributeSet::UGASCourseHealthAttributeSet()
 {
@@ -76,98 +80,277 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 {
 	Super::PostGameplayEffectExecute(Data);
 
-	// Get the Target actor, which should be our owner
+	const FGameplayEffectSpec& Spec                     = Data.EffectSpec;
+	const FGameplayEffectContextHandle& ContextHandle   = Spec.GetContext();
+	const FGameplayTagContainer& DynamicTags            = Spec.DynamicGrantedTags;
+
+	// ---------------------------------------------------------------------
+	// Resolve target info once
+	// ---------------------------------------------------------------------
 	AActor* TargetActor = nullptr;
 	AController* TargetController = nullptr;
 	AGASCourseCharacter* TargetCharacter = nullptr;
-	UAbilitySystemComponent* TargetAbilitySystemComponent = nullptr;
+	UGASCourseAbilitySystemComponent* TargetASC = nullptr;
 
-	AActor* SourceActor = nullptr;
-	AGASCourseCharacter* SourceCharacter = nullptr;
-	UAbilitySystemComponent* SourceAbilitySystemComponent = nullptr;
-	
-	if (Data.Target.AbilityActorInfo.IsValid() && Data.Target.AbilityActorInfo->AvatarActor.IsValid())
+	if (Data.Target.AbilityActorInfo.IsValid())
 	{
-		TargetActor = Data.Target.AbilityActorInfo->AvatarActor.Get();
-		TargetController = Data.Target.AbilityActorInfo->PlayerController.Get();
-		TargetCharacter = Cast<AGASCourseCharacter>(TargetActor);
-		TargetAbilitySystemComponent = TargetCharacter->GetAbilitySystemComponent();
+		const FGameplayAbilityActorInfo* TargetInfo = Data.Target.AbilityActorInfo.Get();
+		TargetActor      = TargetInfo->AvatarActor.Get();
+		TargetController = TargetInfo->PlayerController.Get();
+		TargetCharacter  = Cast<AGASCourseCharacter>(TargetActor);
+
+		if (TargetCharacter)
+		{
+			TargetASC = Cast<UGASCourseAbilitySystemComponent>(TargetCharacter->GetAbilitySystemComponent());
+		}
 	}
 
-	if (Data.EffectSpec.GetContext().IsValid() && Data.EffectSpec.GetContext().GetInstigator() && Data.EffectSpec.GetContext().GetInstigatorAbilitySystemComponent())
+	// ---------------------------------------------------------------------
+	// Resolve source info once
+	// ---------------------------------------------------------------------
+	AActor* SourceActor = ContextHandle.IsValid() ? ContextHandle.GetInstigator() : nullptr;
+	AGASCourseCharacter* SourceCharacter = Cast<AGASCourseCharacter>(SourceActor);
+	UGASCourseAbilitySystemComponent* SourceASC =
+		ContextHandle.IsValid()
+			? Cast<UGASCourseAbilitySystemComponent>(ContextHandle.GetInstigatorAbilitySystemComponent())
+			: nullptr;
+
+	// Resolve world once
+	UWorld* World = nullptr;
+	if (TargetActor)
 	{
-		SourceActor = Data.EffectSpec.GetContext().GetInstigator();
-		SourceCharacter = Cast<AGASCourseCharacter>(SourceActor);
-		SourceAbilitySystemComponent = Data.EffectSpec.GetContext().GetInstigatorAbilitySystemComponent();
+		World = TargetActor->GetWorld();
+	}
+	else if (SourceActor)
+	{
+		World = SourceActor->GetWorld();
 	}
 
-	if(Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
+	// ---------------------------------------------------------------------
+	// Precompute commonly used tag info
+	// ---------------------------------------------------------------------
+	const bool bIsCritical         = DynamicTags.HasTagExact(DamageType_Critical);
+	const bool bIsDamageOverTime   = DynamicTags.HasTagExact(Data_DamageOverTime);
+
+	FGameplayTag DamageTypeTag;
+	for (const FGameplayTag& Tag : DynamicTags)
+	{
+		if (Tag.MatchesTag(DamageType_Root))
+		{
+			DamageTypeTag = Tag;
+			break;
+		}
+	}
+
+	if (bIsCritical)
+	{
+		UE_LOGFMT(LogTemp, Warning, "Damage Modification was critical! {0}", __FUNCTION__);
+	}
+
+	// Convenience pointers to owned tag containers (no copying)
+	const FGameplayTagContainer* SourceOwnedTags = SourceASC ? &SourceASC->GetOwnedGameplayTags() : nullptr;
+	const FGameplayTagContainer* TargetOwnedTags = TargetASC ? &TargetASC->GetOwnedGameplayTags() : nullptr;
+
+	// =====================================================================
+	// DAMAGE BRANCH
+	// =====================================================================
+	if (Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
 	{
 		const float LocalDamage = GetIncomingDamage();
 		SetIncomingDamage(0.0f);
 
-		bool bIsAlive = TargetCharacter->IsCharacterAlive();
-		
-		const float HealthBeforeDamage = CurrentHealth.GetCurrentValue();
-		const float NewHealth = CurrentHealth.GetCurrentValue() - LocalDamage;
-		
+		if (!TargetCharacter || !TargetASC || !World || LocalDamage <= 0.0f)
+		{
+			goto ClampHealth;
+		}
+
+		const bool bWasAlive = TargetCharacter->IsCharacterAlive();
+		const float OldHealth = CurrentHealth.GetCurrentValue();
+		const float NewHealth = OldHealth - LocalDamage;
+
 		SetCurrentHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
-	
-		if(NewHealth <= 0.0f && bIsAlive)
+		
+		// 1. Get original context
+		FGameplayEffectContextHandle Original = Spec.GetEffectContext();
+
+		// 2. Duplicate into a writable one
+		FGameplayEffectContextHandle NewContext = Original.Duplicate();
+
+		// 3. Modify your custom data
+		FGASCourseGameplayEffectContext* MutableContext =
+			static_cast<FGASCourseGameplayEffectContext*>(NewContext.Get());
+			
+		MutableContext->DamageLogEntry.FinalDamageValue = NewHealth >= GetMaxHealth() ? GetMaxHealth() - GetCurrentHealth() : LocalDamage;
+		MutableContext->DamageLogEntry.bIsCriticalHit = bIsCritical;
+		MutableContext->DamageLogEntry.bIsDamageEffect = true;
+		MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
+			
+		if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
+		{
+			MutableContext->DamageLogEntry.DamageID = Debug->GenerateDebugDamageUniqueID();
+			Debug->LogDamageEvent(MutableContext->DamageLogEntry);
+		}
+
+		// ---------------- Damage pipeline event ----------------
+		if (UGASC_DamagePipelineSubsystem* DPS = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		{
+			FDamageModificationContext ModContext;
+			ModContext.bCriticalModification     = bIsCritical;
+			ModContext.bModificationOverTime     = bIsDamageOverTime;
+			ModContext.bDamageModificationKilled = (NewHealth <= 0.0f && bWasAlive);
+			ModContext.DamagePipelineType        = Damage;
+			ModContext.DeltaValue                = LocalDamage;
+			ModContext.NewValue                  = NewHealth;
+			ModContext.DamageType                = DamageTypeTag;
+
+			FHitContext HitCtx;
+			HitCtx.HitTarget      = TargetActor;
+			HitCtx.HitInstigator  = SourceActor;
+			HitCtx.HitTargetTagsContainer      = TargetOwnedTags;
+			HitCtx.HitInstigatorTagsContainer  = SourceOwnedTags;
+			if (ContextHandle.GetHitResult())
+			{
+				HitCtx.HitResult = *ContextHandle.GetHitResult();
+			}
+			HitCtx.HitTimeStamp            = World->GetTimeSeconds();
+			HitCtx.OptionalSourceObject    = Cast<AActor>(ContextHandle.GetSourceObject());
+			HitCtx.HitContextTagsContainer = &DynamicTags;
+
+			ModContext.HitContext = HitCtx;
+
+			// Delegates broadcast synchronously -> pointer to HitCtx is safe
+			DPS->Internal_BroadcastDamageApplied(ModContext);
+			DPS->Internal_BroadcastDamageReceived(ModContext);
+		}
+
+		// ---------------- Death handling ----------------
+		if (NewHealth <= 0.0f && bWasAlive && TargetASC && SourceASC)
 		{
 			TargetCharacter->SetCharacterDead(true);
-			
+
 			FGameplayEventData OnDeathPayload;
-			OnDeathPayload.EventTag = Event_OnDeath;
-			OnDeathPayload.Instigator = Data.EffectSpec.GetContext().GetOriginalInstigator();
-			
-			FGameplayTagContainer TargetTags;
-			TargetAbilitySystemComponent->GetOwnedGameplayTags(TargetTags);
-			OnDeathPayload.TargetTags = TargetTags;
-
-			FGameplayTagContainer SourceTags;
-			SourceAbilitySystemComponent->GetOwnedGameplayTags(SourceTags);
-			OnDeathPayload.InstigatorTags = SourceTags;
-			
-			OnDeathPayload.Target = GetOwningActor();
-			OnDeathPayload.ContextHandle = Data.EffectSpec.GetContext();
+			OnDeathPayload.EventTag       = Event_OnDeath;
+			OnDeathPayload.Instigator     = ContextHandle.GetOriginalInstigator();
+			OnDeathPayload.Target         = GetOwningActor();
+			OnDeathPayload.ContextHandle  = ContextHandle;
 			OnDeathPayload.EventMagnitude = LocalDamage;
-			TargetAbilitySystemComponent->HandleGameplayEvent(Event_OnDeath, &OnDeathPayload);
-			SourceAbilitySystemComponent->HandleGameplayEvent(Event_OnDeathDealt, &OnDeathPayload);
-			
 
-			TSubclassOf<UGameplayEffectExecutionCalculation> CardResourceExecutionClass;
+			if (TargetOwnedTags)
+			{
+				OnDeathPayload.TargetTags = *TargetOwnedTags;
+			}
+			if (SourceOwnedTags)
+			{
+				OnDeathPayload.InstigatorTags = *SourceOwnedTags;
+			}
+
+			TargetASC->HandleGameplayEvent(Event_OnDeath, &OnDeathPayload);
+			SourceASC->HandleGameplayEvent(Event_OnDeathDealt, &OnDeathPayload);
+
 			if (AbilitySystemSettings)
 			{
-				CardResourceExecutionClass = AbilitySystemSettings->CardResourceExecution;
-				if (!CardResourceExecutionClass)
+				TSubclassOf<UGameplayEffectExecutionCalculation> CardResourceExec =
+					AbilitySystemSettings->CardResourceExecution;
+				if (!CardResourceExec)
 				{
 					UE_LOG(LogTemp, Warning, TEXT("Health Calculation is not valid!"));
-					return;
 				}
 			}
 		}
 	}
-	//Passive Healing Event
-	if(Data.EvaluatedData.Attribute == GetIncomingHealingAttribute() && CurrentHealth.GetCurrentValue() != MaxHealth.GetCurrentValue())
-	{
-		const float LocalIncomingHealing = GetIncomingHealing();
-		SetIncomingHealing(0.0f);
-		
-		float NewCurrentHealth = GetCurrentHealth() + LocalIncomingHealing;
-		SetCurrentHealth(FMath::Clamp(NewCurrentHealth, 0.0f, GetMaxHealth()));
 
-		FGameplayEventData OnHealingPayload;
-		OnHealingPayload.EventTag = Event_Gameplay_OnHealing;
-		OnHealingPayload.Instigator = Data.EffectSpec.GetContext().GetOriginalInstigator();
-		OnHealingPayload.Target = GetOwningActor();
-		OnHealingPayload.ContextHandle = Data.EffectSpec.GetContext();
-		OnHealingPayload.EventMagnitude = LocalIncomingHealing;
-		TargetAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnHealing, &OnHealingPayload);
+	// =====================================================================
+	// PASSIVE HEALING BRANCH
+	// =====================================================================
+	if (Data.EvaluatedData.Attribute == GetIncomingHealingAttribute())
+	{
+		const float LocalHeal = GetIncomingHealing();
+		SetIncomingHealing(0.0f);
+		if (CurrentHealth.GetCurrentValue() != MaxHealth.GetCurrentValue())
+		{
+			if (!TargetCharacter || !TargetASC || !World || LocalHeal <= 0.0f)
+			{
+				goto ClampHealth;
+			}
+			
+			float NewHealth = GetCurrentHealth() + LocalHeal;
+			float TrueHealthDelta = NewHealth >= GetMaxHealth() ? GetMaxHealth() - GetCurrentHealth() : LocalHeal;
+			NewHealth = FMath::Clamp(NewHealth, 0.0f, GetMaxHealth());
+			SetCurrentHealth(NewHealth);
+			
+			// 1. Get original context
+			FGameplayEffectContextHandle Original = Spec.GetEffectContext();
+
+			// 2. Duplicate into a writable one
+			FGameplayEffectContextHandle NewContext = Original.Duplicate();
+
+			// 3. Modify your custom data
+			FGASCourseGameplayEffectContext* MutableContext =
+				static_cast<FGASCourseGameplayEffectContext*>(NewContext.Get());
+			
+			MutableContext->DamageLogEntry.FinalDamageValue = TrueHealthDelta;
+			MutableContext->DamageLogEntry.bIsCriticalHit = bIsCritical;
+			MutableContext->DamageLogEntry.bIsDamageEffect = false;
+			MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
+			
+			if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
+			{
+				MutableContext->DamageLogEntry.DamageID = Debug->GenerateDebugDamageUniqueID();
+				Debug->LogDamageEvent(MutableContext->DamageLogEntry);
+			}
+			
+			if (UGASC_DamagePipelineSubsystem* DPS = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+			{
+				FDamageModificationContext ModContext;
+				ModContext.bCriticalModification     = bIsCritical;
+				ModContext.bModificationOverTime     = bIsDamageOverTime;
+				ModContext.bDamageModificationKilled = false;
+				ModContext.DamagePipelineType        = Healing;
+				ModContext.DeltaValue                = TrueHealthDelta;
+				ModContext.NewValue                  = NewHealth;
+				ModContext.DamageType                = DamageTypeTag;
+
+				FHitContext HitCtx;
+				HitCtx.HitTarget      = TargetActor;
+				HitCtx.HitInstigator  = SourceActor;
+				HitCtx.HitTargetTagsContainer      = TargetOwnedTags;
+				HitCtx.HitInstigatorTagsContainer  = SourceOwnedTags;
+				if (ContextHandle.GetHitResult())
+				{
+					HitCtx.HitResult = *ContextHandle.GetHitResult();
+				}
+				HitCtx.HitTimeStamp            = World->GetTimeSeconds();
+				HitCtx.OptionalSourceObject    = Cast<AActor>(ContextHandle.GetSourceObject());
+				HitCtx.HitContextTagsContainer = &DynamicTags;
+
+				ModContext.HitContext = HitCtx;
+
+				DPS->Internal_ForwardOnHealingReceived(ModContext);
+				DPS->Internal_ForwardOnHealingApplied(ModContext);
+
+				// ---- Gameplay events for UI / logic ----
+				if (SourceASC)
+				{
+					FGameplayEventData TargetHealedPayload;
+					TargetHealedPayload.Instigator     = SourceASC->GetAvatarActor();
+					TargetHealedPayload.Target         = TargetASC->GetAvatarActor();
+					TargetHealedPayload.EventMagnitude = LocalHeal;
+					TargetHealedPayload.ContextHandle  = ContextHandle;
+					TargetHealedPayload.InstigatorTags = DynamicTags;
+					TargetHealedPayload.InstigatorTags.AddTag(DamageType_Healing);
+
+					// Use HandleGameplayEvent (sync) for better perf; swap to SendGameplayEventAsync if you truly need async BP.
+					TargetASC->HandleGameplayEvent(Event_Gameplay_OnTargetHealed, &TargetHealedPayload);
+					SourceASC->HandleGameplayEvent(Event_Gameplay_OnHealing, &TargetHealedPayload);
+				}
+			}
+		}
 	}
 
+ClampHealth:
 	if (Data.EvaluatedData.Attribute == GetCurrentHealthAttribute())
 	{
 		SetCurrentHealth(FMath::Clamp(GetCurrentHealth(), 0.0f, GetMaxHealth()));
 	}
 }
+

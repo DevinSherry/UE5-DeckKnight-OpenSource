@@ -1,37 +1,37 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
-#include "GASC_UI_DamageNumber.h"
+#include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "GASC_UI_DamageNumber.h"
 #include "GASC_UI_DamageNumberPanel.generated.h"
 
 /**
  * @class UGASC_UI_DamageNumberPanel
- * @brief This class handles displaying damage numbers in the user interface for the GASCourse game.
- *
- * UGASC_UI_DamageNumberPanel is responsible for managing and displaying damage numbers,
- * including critical hits, when damage is dealt in the game. It utilizes a UCanvasPanel
- * to add and manage individual damage number widgets, which are instances of UGASC_UI_DamageNumber.
+ * Displays floating damage numbers using world-space tracking.
+ * Now uses world positions instead of local offsets, ensuring proper positioning
+ * across all screen resolutions and DPI modes.
  */
 UCLASS()
 class GASCOURSE_API UGASC_UI_DamageNumberPanel : public UUserWidget
 {
 	GENERATED_BODY()
-	
+
 public:
 
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+	virtual void NativeDestruct() override;
 
+	/** Panel into which damage number widgets are added */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage, meta=(BindWidget))
 	class UCanvasPanel* DamageNumberPanel;
 
-	UPROPERTY(EditAnywhere, Category=Damage)
-	TMap<TWeakObjectPtr<UGASC_UI_DamageNumber>, FVector> DamageNumbers;
-
+	/** Handles incoming damage events */
 	UFUNCTION()
-	void OnDamageDealt(const FGameplayEventData& DamagePayloadData);
+	void OnDamageApplied_Event(const FDamageModificationContext& DamageContext);
+	
+	UFUNCTION()
+	void OnHealingReceived_Event(const FDamageModificationContext& HealingContext);
 
 	UFUNCTION(BlueprintNativeEvent)
 	void AddCriticalHitDamageText();
@@ -53,12 +53,14 @@ public:
 
 private:
 
+	/** Indicates last damage event was critical */
 	bool bIsCriticalDamage = false;
-	
-	FGameplayEventData DamageData;
 
-	FVector GetDamageNumberPosition(const FGameplayEventData& InPayload, const UGASC_UI_DamageNumber& DamageNumber) const;
-	TOptional<FVector2D> GetDamagePositionOnScreen(const FVector &InStoredPosition, const FGameplayEventData &StoredPayload, const UGASC_UI_DamageNumber& DamageNumber);
+	FDamageModificationContext DamageModificationContext;
+
+	/** WORLD-SPACE positions where damage numbers should appear */
+	UPROPERTY()
+	TMap<TWeakObjectPtr<UGASC_UI_DamageNumber>, FVector> DamageNumberWorldPositions;
 
 	UPROPERTY()
 	TArray<UGASC_UI_DamageNumber*> DamageNumberPool;
@@ -75,5 +77,12 @@ private:
 	int32 DamageNumberPoolIndex = 0;
 
 	UGASC_UI_DamageNumber* GetPooledDamageNumber();
+
 	void ReturnToDamageNumberPool(UGASC_UI_DamageNumber* DamageNumber);
+
+	/** NEW — Computes the world position for a given damage number */
+	FVector GetDamageNumberWorldPosition(const FHitContext& HitContext, const UGASC_UI_DamageNumber& DamageNumber) const;
+
+	/** NEW — Converts world → screen → widget space (DPI-safe) */
+	TOptional<FVector2D> GetDamagePositionOnScreen(const FVector& WorldLocation, const AActor* Target, const UGASC_UI_DamageNumber& DamageNumber);
 };

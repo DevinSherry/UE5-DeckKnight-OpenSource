@@ -8,6 +8,7 @@
 #include "CollisionShape.h"
 #include "Engine/Engine.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Game/Systems/Subsystems/MeleeTrace/Settings/GASC_MeleeSubsystem_Settings.h" 
 #include "GASC_MeleeTrace_Subsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_MeleeTraceSubsystem, Log, All);
@@ -96,12 +97,21 @@ struct FGASC_MeleeTrace_Subsystem_Data
 	
 	FCollisionShape TraceCollisionShape;
 	TArray<FVector> PreviousFrameSamples;
+	
 	UPROPERTY()
 	TArray<AActor*> HitActors;
+	
 	UPROPERTY()
 	TArray<AActor*> HitActors_PreviousFrames;
 	
+	UPROPERTY()
 	TArray<FHitResult> HitResults_PreviousFrames;
+	
+	UPROPERTY()
+	TMap<TWeakObjectPtr<AActor>, float> PerActorHitStamps;
+	
+	float SwingStartTime = 0.0f;
+	float HitCooldownTime = 0.0f;
 	
 	FGuid TraceId;
 
@@ -220,4 +230,6 @@ private:
 
 	FCollisionObjectQueryParams ConfigureCollisionObjectParams(const TArray<TEnumAsByte<EObjectTypeQuery> > & ObjectTypes);
 	
+	UPROPERTY()
+	const UGASC_MeleeSubsystem_Settings* MeleeTraceSettings = nullptr;
 };

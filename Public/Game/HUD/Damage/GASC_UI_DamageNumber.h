@@ -5,6 +5,7 @@
 #include "Abilities/GameplayAbilityTypes.h"
 #include "Blueprint/UserWidget.h"
 #include "Game/Systems/Damage/Data/GASCourseDamageTypeUIData.h"
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
 #include "GASC_UI_DamageNumber.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDamageNumberRemoved, UGASC_UI_DamageNumber*, DamageNumber);
@@ -29,14 +30,19 @@ public:
 
 	virtual void NativeConstruct() override;
 	virtual void NativePreConstruct() override;
-	
+
 public:
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, meta=(BindWidget))
 	class UTextBlock* DamageText;
 
+	/*
 	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
 	FGameplayEventData DamageData;
+	*/
+
+	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
+	FDamageModificationContext DamageModContext;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
 	bool bIsCriticalHit = false;
@@ -49,8 +55,8 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent, Category = "DamageNumber")
 	void SetCriticalHitText();
-	
+
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnDamageNumberRemoved OnDamageNumberRemovedDelegate;
-	
+
 };

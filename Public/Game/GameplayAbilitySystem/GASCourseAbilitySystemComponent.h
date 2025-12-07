@@ -85,7 +85,7 @@ public:
 
 	void WaitForAbilityCooldownEnd(UGameplayAbility* InAbility, const FActiveGameplayEffectHandle InCooldownActiveGEHandle);
 	
-	void SendGameplayEventAsync(FGameplayTag EventTag, const FGameplayEventData& EventData);
+	void SendGameplayEventAsync(FGameplayTag EventTag, const FGameplayEventData& EventData) const;
 
 	UFUNCTION(BlueprintPure, meta=(GameplayTagFilter="Input.NativeAction.Ability"))
 	TSubclassOf<UGameplayAbility> GetAbilityFromTaggedInput(FGameplayTag InputTag);

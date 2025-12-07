@@ -103,14 +103,6 @@ class AGASCourseCharacter : public ACharacter, public IAbilitySystemInterface, p
 	GENERATED_BODY()
 
 public:
-
-	// --- Blueprint-accessible global delegates ---
-	UPROPERTY(BlueprintAssignable, Category = "Damage Pipeline")
-	FOnHitApplied OnHitAppliedDelegateCallback;
-
-	// --- Blueprint-accessible global delegates ---
-	UPROPERTY(BlueprintAssignable, Category = "Damage Pipeline")
-	FOnHitReceived OnHitReceivedDelegateCallback;
 	
 	AGASCourseCharacter(const class FObjectInitializer& ObjectInitializer);
 	
@@ -302,6 +294,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GASCourse|Character|Attributes")
 	float GetCurrentHealth() const;
 	
+	UFUNCTION(BlueprintCallable, Category = "GASCourse|Character|Attributes")
+	float GetMaxHealth() const;
+	
 	UFUNCTION()
 	FORCEINLINE UGASCourseGameplayAbilitySet* GetDefaultAbilitySet() const
 	{
@@ -333,7 +328,6 @@ public:
 	}
 	
 protected:
-	
 	
 	UPROPERTY(ReplicatedUsing = Call_OnRep_ReplicatedAnimMontage)
 	FGameplayAbilityRepAnimMontage RepAnimMontageInfo;

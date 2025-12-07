@@ -1,10 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Game/HUD/Damage/GASC_UI_DamageNumber.h"
 #include "Components/TextBlock.h"
-#include "Game/BlueprintLibraries/GameplayAbilitySystem/GASCourseASCBlueprintLibrary.h"
-
 
 void UGASC_UI_DamageNumber::NativeConstruct()
 {
@@ -18,61 +15,61 @@ void UGASC_UI_DamageNumber::NativePreConstruct()
 
 void UGASC_UI_DamageNumber::SetDamageTextValue_Implementation()
 {
-	if (!DamageText)
+	// Basic safety checks
+	if (!DamageText || !DamageTypeUIData)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DamageText is NULL"));
+		UE_LOG(LogTemp, Warning, TEXT("DamageNumber: Missing DamageText or DamageTypeUIData."));
 		return;
 	}
 
-	if (!DamageData.Instigator)
+	// Pipeline type (Damage vs Healing) now comes from the unified damage pipeline
+	const bool bIsHealing = (DamageModContext.DamagePipelineType == EGASC_DamagePipelineType::Healing);
+	const float RawValue   = DamageModContext.DeltaValue;
+	const int32 Rounded    = FMath::RoundToInt(RawValue);
+	if (Rounded == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DamageData.Instigator is NULL"));
 		return;
 	}
 
-	if (!DamageTypeUIData)
+	// Choose sign / text formatting
+	if (bIsHealing)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DamageTypeUIData is NULL"));
-		return;
-	}
-
-	float DamageValue = DamageData.EventMagnitude;
-
-	if (DamageData.InstigatorTags.HasTag(DamageType_Healing))
-	{
-		FText HealingText = FText::FromString(FString::Printf(TEXT("+%.0f"), DamageValue));
-		DamageText->SetText(HealingText);
+		// Positive sign for healing
+		DamageText->SetText(FText::FromString(FString::Printf(TEXT("+%d"), Rounded)));
 	}
 	else
 	{
-		DamageText->SetText(FText::AsNumber(FMath::RoundToInt(DamageValue)));
+		DamageText->SetText(FText::AsNumber(Rounded));
 	}
 
-	FLinearColor DamageTextColor = FLinearColor::Gray;
-
-	FGameplayTag DamageTypeTag = FGameplayTag::EmptyTag;
-	UGASCourseASCBlueprintLibrary::FindDamageTypeTagInContainer(DamageData.InstigatorTags, DamageTypeTag);
-
+	// Color by damage type tag coming from the pipeline context
+	FGameplayTag DamageTypeTag = DamageModContext.DamageType;
 	if (!DamageTypeTag.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DamageTypeTag is INVALID"));
+		// If type isn't specified, keep default color (gray-ish)
+		DamageText->SetColorAndOpacity(FLinearColor::Gray);
 		return;
 	}
 
-	DamageTextColor = DamageTypeUIData->GetDamageTypeColor(DamageTypeTag);
-	DamageText->SetColorAndOpacity(DamageTextColor);
+	const FLinearColor Color = DamageTypeUIData->GetDamageTypeColor(DamageTypeTag);
+	DamageText->SetColorAndOpacity(Color);
 }
 
 void UGASC_UI_DamageNumber::SetCriticalHitText_Implementation()
 {
 	if (!DamageTypeUIData)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DamageTypeColorData is NULL"));
+		UE_LOG(LogTemp, Warning, TEXT("DamageNumber: DamageTypeUIData is NULL in SetCriticalHitText."));
 		return;
 	}
+
 	if (DamageText)
 	{
 		DamageText->SetColorAndOpacity(DamageTypeUIData->CriticalDamageColor);
 		DamageText->SetText(DamageTypeUIData->CriticalDamageText);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DamageNumber: DamageText is NULL in SetCriticalHitText."));
 	}
 }

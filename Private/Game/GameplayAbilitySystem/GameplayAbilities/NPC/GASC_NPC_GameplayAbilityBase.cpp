@@ -2,7 +2,6 @@
 
 
 #include "Game/GameplayAbilitySystem/GameplayAbilities/NPC/GASC_NPC_GameplayAbilityBase.h"
-
 #include "Game/Character/NPC/GASCourseNPC_Base.h"
 
 
@@ -16,4 +15,11 @@ void UGASC_NPC_GameplayAbilityBase::OnGiveAbility(const FGameplayAbilityActorInf
 {
 	Super::OnGiveAbility(ActorInfo, Spec);
 	AGASCourseNPC_Base* Character = CastChecked<AGASCourseNPC_Base>(ActorInfo->AvatarActor.Get());
+}
+
+void UGASC_NPC_GameplayAbilityBase::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
+{
+	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+	TRACE_CPUPROFILER_EVENT_SCOPE(NPC_ACTIVATE_ABILITY);
 }

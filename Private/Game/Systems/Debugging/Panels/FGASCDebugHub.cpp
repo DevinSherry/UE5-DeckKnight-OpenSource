@@ -26,6 +26,11 @@ void FGASCDebugHub::DrawDebugHub()
 	{
 		if (ImGui::Begin("Deck Knight Debug Hub", &bShowDebugHub, ImGuiWindowFlags_AlwaysAutoResize))
 		{
+			const int NumColumns = 4;
+			const ImVec2 ButtonSize(200, 200);
+
+			int ColumnIndex = 0;
+
 			for (auto& PanelPair : DebugPanels)
 			{
 				auto Panel = PanelPair.Key;
@@ -33,13 +38,20 @@ void FGASCDebugHub::DrawDebugHub()
 
 				ImGui::PushID(Panel->GetDebugPanelName());
 
-				if (ImGui::Button(Panel->GetDebugPanelName(), { 200, 200 }))
+				if (ImGui::Button(Panel->GetDebugPanelName(), ButtonSize))
 				{
 					bOpen = !bOpen;
 				}
 				ImGui::PopID();
-				ImGui::SameLine();
-			}	
+
+				ColumnIndex++;
+
+				// Move to next row every 4 buttons
+				if (ColumnIndex % NumColumns != 0)
+				{
+					ImGui::SameLine();
+				}
+			}
 		}
 		ImGui::End();
 

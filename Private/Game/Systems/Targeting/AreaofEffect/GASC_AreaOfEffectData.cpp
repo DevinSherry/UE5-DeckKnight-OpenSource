@@ -3,13 +3,13 @@
 
 #include "Game/Systems/Targeting/AreaofEffect/GASC_AreaOfEffectData.h"
 #include "Game/Systems/Targeting/AreaofEffect/GASC_TargetingSelectionTask_AOE.h"
-#include "Game/BlueprintLibraries/GameplayAbilitySystem/GASCourseASCBlueprintLibrary.h"
 #include "Game/BlueprintLibraries/TargetingSystem/GASCourseTargetingLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Misc/DataValidation.h"
 #include "TargetingSystem/TargetingSubsystem.h"
 #include "Tasks/TargetingTask.h"
 #include "Types/TargetingSystemTypes.h"
+#include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
 
 bool UGASC_AreaOfEffectData::ProcessAreaOfEffect(AActor* Instigator, const FVector& Center)
 {
@@ -46,6 +46,23 @@ EDataValidationResult UGASC_AreaOfEffectData::IsDataValid(class FDataValidationC
 	}
 
 	return Result;
+}
+
+void UGASC_AreaOfEffectData::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UGASC_AreaOfEffectData, AreaOfEffectType))
+	{
+		AreaOfEffectDamagePipelineContext.DamageType = FGameplayTag::EmptyTag;
+		if (AreaOfEffectType == EGASC_AreaOfEffectType::Damage)
+		{
+			AreaOfEffectDamagePipelineContext.DamageType = DamageType_Physical;
+		}
+		else
+		{
+			AreaOfEffectDamagePipelineContext.DamageType = DamageType_Healing;
+		}
+	}
 }
 #endif // WITH_EDITOR
 
@@ -174,7 +191,7 @@ bool UGASC_AreaOfEffectData::ApplyAreaOfEffectOnActors(AActor* InInstigator, TAr
 				break;
 			}
 			AreaOfEffectValue = ProcessAreaOfEffectValueFallOffOnTarget(TargetingRequestHandle, TargetActor);
-			UGASCourseASCBlueprintLibrary::ApplyDamageToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamageContext);
+			UGASC_DamagePipelineStatics::ApplyDamageToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamagePipelineContext);
 		}
 		else if (AreaOfEffectType == EGASC_AreaOfEffectType::Healing)
 		{
@@ -183,7 +200,7 @@ bool UGASC_AreaOfEffectData::ApplyAreaOfEffectOnActors(AActor* InInstigator, TAr
 				break;
 			}
 			AreaOfEffectValue = ProcessAreaOfEffectValueFallOffOnTarget(TargetingRequestHandle, TargetActor);
-			UGASCourseASCBlueprintLibrary::ApplyHealingToTarget(TargetActor, InInstigator, AreaOfEffectValue);
+			UGASC_DamagePipelineStatics::ApplyHealToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamagePipelineContext);
 		}
 	}
 

@@ -9,6 +9,10 @@
 #include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
+#include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
+#include "Game/GameplayAbilitySystem/GameplayEffect/Healing/GASC_HealingGameplayEffect.h"
+#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
 #include "Game/Systems/Healing/GASCourseHealingExecution.h"
 
 struct GASCourseDamageStatics
@@ -57,16 +61,19 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 	EvaluationParameters.SourceTags = SourceTags;
 	EvaluationParameters.TargetTags = TargetTags;
 	
-	TSubclassOf<UGameplayEffectExecutionCalculation> HealingCalculationClass;
-	if (const UGASC_AbilitySystemSettings* AbilitySystemSettings = GetDefault<UGASC_AbilitySystemSettings>())
-	{
-		HealingCalculationClass = AbilitySystemSettings->HealingExecution;
-		if (!HealingCalculationClass)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Health Calculation is not valid!"));
-			return;
-		}
-	}
+	// ==========================
+	// 0. Instantiate Debug log entry
+	// ==========================
+	
+	FGameplayEffectContextHandle ContextHandle = ExecutionParams.GetOwningSpec().GetEffectContext();
+	FGASCourseGameplayEffectContext* GASCourseContext = (FGASCourseGameplayEffectContext*)ContextHandle.Get();
+	GASCourseContext->DamageLogEntry.HitInstigatorName = SourceActor->GetName();
+	GASCourseContext->DamageLogEntry.HitTargetName = TargetActor->GetName();
+	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(*SourceTags);
+	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(*TargetTags);
+	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec->DynamicGrantedTags);
+	GASCourseContext->DamageLogEntry.DamageInstigatorID = SourceActor->GetUniqueID();
+	GASCourseContext->DamageLogEntry.DamageTargetID = TargetActor->GetUniqueID();
 
 	bool bUsingCachedDamage = false;
 	bool bCriticalHit = false;
@@ -74,6 +81,8 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().IncomingDamageDef, EvaluationParameters, Damage);
 	// Add SetByCaller damage if it exists
 	Damage += FMath::Max<float>(Spec->GetSetByCallerMagnitude(Data_IncomingDamage, false, -1.0f), 0.0f);
+	
+	GASCourseContext->DamageLogEntry.BaseDamageValue = Damage;
 
 	if (Spec->DynamicGrantedTags.HasTagExact(Data_DamageOverTime))
 	{
@@ -91,7 +100,7 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		}
 	}
 
-	if (bUsingCachedDamage == false)
+	if (!bUsingCachedDamage)
 	{
 		/*
 		* Critical Chance + Critical Damage
@@ -102,11 +111,16 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		float CriticalDamageMultiplier = 0.0f;
 		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().CriticalDamageMultiplierDef, EvaluationParameters, CriticalDamageMultiplier);
 	
-		float RolledChancePercentage = FMath::RandRange(0.0f, 1.0f);
-		bCriticalHit = RolledChancePercentage <= CriticalChance;
+		const float Roll = FMath::FRand();   // 0..1
+		bCriticalHit = (Roll <= CriticalChance);
 		if (bCriticalHit)
 		{
 			Damage += FMath::Floor(Damage * CriticalDamageMultiplier);
+			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().CriticalChanceProperty->GetName(), 
+			CriticalChance);
+			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().CriticalDamageMultiplierProperty->GetName(), 
+			CriticalDamageMultiplier);
+			Spec->DynamicGrantedTags.AddTag(DamageType_Critical);
 		}
 
 		if (Damage > 0.f)
@@ -117,25 +131,27 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 
 		//Store damage as cached damage
 		Spec->SetSetByCallerMagnitude(Data_CachedDamage, Damage);
+		
+		GASCourseContext->DamageLogEntry.ModifiedDamageValue = Damage;
 	}
 	
-	UGASCourseGameplayEffect* IncomingHealingGameplayEffect = NewObject<UGASCourseGameplayEffect>(GetTransientPackage());
-	IncomingHealingGameplayEffect->DurationPolicy = EGameplayEffectDurationType::Instant;
-	if(UGASCourseGameplayEffect* HealingEffect = Cast<UGASCourseGameplayEffect>(IncomingHealingGameplayEffect))
+	if (UWorld* World = SourceActor->GetWorld())
 	{
-		FGameplayEffectExecutionDefinition HealingExecutionDefinition;
-		HealingExecutionDefinition.CalculationClass = HealingCalculationClass; //LoadClass<UGASCourseHealingExecution>(SourceActor, TEXT("/Game/GASCourse/Game/Systems/Healing/HealingExecution_Base.HealingExecution_Base_C"));
-		if(HealingExecutionDefinition.CalculationClass)
+		if (UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
 		{
-			HealingEffect->Executions.Emplace(HealingExecutionDefinition);
-			FGameplayEffectContext* ContextHandle = UAbilitySystemGlobals::Get().AllocGameplayEffectContext();
-			ContextHandle->AddInstigator(SourceActor, SourceActor);
-			const FGameplayEffectSpecHandle HealingEffectHandle =FGameplayEffectSpecHandle(new FGameplayEffectSpec(HealingEffect, FGameplayEffectContextHandle(ContextHandle), 1.0f));
-			UAbilitySystemBlueprintLibrary::AssignTagSetByCallerMagnitude(HealingEffectHandle, Data_IncomingHealing, Damage);
-			UAbilitySystemBlueprintLibrary::AddGrantedTags(HealingEffectHandle, Spec->DynamicGrantedTags);
-			SourceAbilitySystemComponent->ApplyGameplayEffectSpecToTarget(*HealingEffectHandle.Data.Get(), SourceAbilitySystemComponent);
+			//TODO Add damage log entry for lifesteal labeling
+			World->GetTimerManager().SetTimerForNextTick(
+			FTimerDelegate::CreateLambda([this, DamagePipelineSubsystem, SourceActor, Damage]()
+			{
+					FDamagePipelineContext HealContext;
+					DamagePipelineSubsystem->ApplyHealToTarget(SourceActor, SourceActor, Damage, HealContext);
+			}));
 		}
 	}
+	
+	/*
+	 *This is where we will add more damage log information for resistances and armor calculations
+	 */
 
 	// Broadcast damages to Target ASC & SourceASC
 	if (TargetAbilitySystemComponent && SourceAbilitySystemComponent)
@@ -146,10 +162,9 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		DamageDealtPayload.EventMagnitude = Damage;
 		DamageDealtPayload.ContextHandle = Spec->GetContext();
 		DamageDealtPayload.InstigatorTags = Spec->DynamicGrantedTags;
-		if(Spec->GetContext().GetHitResult())
+		if (const FHitResult* HR = Spec->GetContext().GetHitResult())
 		{
-			FHitResult HitResultFromContext = *Spec->GetContext().GetHitResult();
-			DamageDealtPayload.TargetData = UAbilitySystemBlueprintLibrary::AbilityTargetDataFromHitResult(HitResultFromContext); 
+			DamageDealtPayload.TargetData = UAbilitySystemBlueprintLibrary::AbilityTargetDataFromHitResult(*HR);
 		}
 
 		if (bCriticalHit)
@@ -162,8 +177,8 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 			return;
 		}
 		
-		SourceAbilitySystemComponent->HandleGameplayEvent(FGameplayTag::RequestGameplayTag(FName("Event.Gameplay.OnDamageDealt")), &DamageDealtPayload);
-		TargetAbilitySystemComponent->HandleGameplayEvent(FGameplayTag::RequestGameplayTag(FName("Event.Gameplay.OnDamageReceived")), &DamageDealtPayload);
+		SourceAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnDamageDealt, &DamageDealtPayload);
+		TargetAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnDamageDealt, &DamageDealtPayload);
 
 		//TODO: Instead of sending event, pass in status effect tag into gameplay status table
 		TargetAbilitySystemComponent->ApplyGameplayStatusEffect(TargetAbilitySystemComponent, SourceAbilitySystemComponent, Spec->DynamicGrantedTags);

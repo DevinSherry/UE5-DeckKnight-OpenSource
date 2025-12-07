@@ -7,6 +7,7 @@ void UGASC_GameplayAbility_Melee::ActivateAbility(const FGameplayAbilitySpecHand
 	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 	const FGameplayEventData* TriggerEventData)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(MeleeAbility_Activate);
 	AGASCourseCharacter* Character = CastChecked<AGASCourseCharacter>(ActorInfo->AvatarActor.Get());
 	MotionWarpingComponent = Character->FindComponentByClass<UMotionWarpingComponent>();
 	if (!MotionWarpingComponent)
