@@ -8,7 +8,6 @@
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
-#include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 
 #if WITH_EDITOR
@@ -302,19 +301,15 @@ void AGASCoursePlayerCharacter::Input_RotateCameraAxis(const FInputActionValue& 
 	{
 		return;
 	}
-	if(AGASCoursePlayerController* PlayerControllerController = Cast<AGASCoursePlayerController>(Controller))
-	{
+	GetCameraBoom()->bEnableCameraRotationLag = false;
+	const FVector2d CameraRotation = Value.Get<FVector2D>();
+	const float CameraRotationX = CameraRotation.X; //* CurrentCameraRotationSpeed;
+	const float CameraRotationY = CameraRotation.Y; //* CurrentCameraRotationSpeed;
 		
-		GetCameraBoom()->bEnableCameraRotationLag = false;
-		const FVector2d CameraRotation = Value.Get<FVector2D>();
-		const float CameraRotationX = CameraRotation.X; //* CurrentCameraRotationSpeed;
-		const float CameraRotationY = CameraRotation.Y; //* CurrentCameraRotationSpeed;
-		
-		const FRotator NewCameraControlRotation = FRotator(FMath::ClampAngle((CameraBoom->GetComponentRotation().Pitch - CameraRotationY),
-			CameraSettingsData->MinCameraPitchAngle, CameraSettingsData->MaxCameraPitchAngle),CameraBoom->GetComponentRotation().Yaw + CameraRotationX, 0.0f);
+	const FRotator NewCameraControlRotation = FRotator(FMath::ClampAngle((CameraBoom->GetComponentRotation().Pitch - CameraRotationY),
+		CameraSettingsData->MinCameraPitchAngle, CameraSettingsData->MaxCameraPitchAngle),CameraBoom->GetComponentRotation().Yaw + CameraRotationX, 0.0f);
 
-		CameraBoom->SetWorldRotation(NewCameraControlRotation);
-	}
+	CameraBoom->SetWorldRotation(NewCameraControlRotation);
 }
 
 void AGASCoursePlayerCharacter::Input_CameraZoom(const FInputActionInstance& InputActionInstance)

@@ -78,10 +78,6 @@ public:
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, MaxHealth)
 
 	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
-	FGameplayAttributeData StatusDamageHealingCoefficient;
-	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient)
-
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
 	FGameplayAttributeData ElementalDamageHealingCoefficient;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient)
 	
@@ -96,6 +92,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Damage")
 	FGameplayAttributeData IncomingDamage;
 	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, IncomingDamage)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage")
+	FGameplayAttributeData DamageResistanceMultiplier;
+	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, DamageResistanceMultiplier);
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage")
+	FGameplayAttributeData DamageMultiplier;
+	ATTRIBUTE_ACCESSORS(UGASCourseHealthAttributeSet, DamageMultiplier);
 
 	UPROPERTY(BlueprintReadOnly, Category = "Damage")
 	FGameplayAttributeData CriticalChance = 0.0f;

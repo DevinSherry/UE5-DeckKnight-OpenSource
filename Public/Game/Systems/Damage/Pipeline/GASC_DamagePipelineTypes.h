@@ -105,6 +105,9 @@ struct FDamageModificationContext
 	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
 	bool bModificationOverTime = false;
 	
+	UPROPERTY(BlueprintReadOnly, Category = "Damage Pipeline Context")
+	bool bDamageResisted = false;
+	
 	FDamageModificationContext() = default;
 };
 
@@ -177,6 +180,7 @@ struct FDamageLogEntry
 	bool bIsCriticalHit = false;
 	bool bIsOverTimeEffect = false;
 	bool bIsSimulatedDamage = false;
+	bool bDamageResisted = false;
 
 	FDamageLogEntry() = default;
 };

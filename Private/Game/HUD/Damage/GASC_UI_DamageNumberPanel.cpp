@@ -1,64 +1,87 @@
 #include "Game/HUD/Damage/GASC_UI_DamageNumberPanel.h"
+
 #include "Blueprint/SlateBlueprintLibrary.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
-#include "Game/Character/Player/GASCoursePlayerController.h"
 #include "Kismet/GameplayStatics.h"
-#include "Engine/StreamableManager.h"
-#include "Engine/AssetManager.h"
+
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "Game/Systems/Damage/Data/GASCourseDamageTypeUIData.h"
+
+#include "Engine/AssetManager.h"
+#include "Engine/StreamableManager.h"
+#include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
 
 void UGASC_UI_DamageNumberPanel::NativeConstruct()
 {
 	Super::NativeConstruct();
 
-	AActor* OwningActor = GetOwningPlayerPawn();
-	if (!OwningActor)
-		return;
+	OwningPlayerController = GetOwningPlayer();
+	if (!OwningPlayerController)
+	{
+		OwningPlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	}
 
-	if (UWorld* World = OwningActor->GetWorld())
+	// Register damage listeners
+	if (UWorld* World = GetWorld())
 	{
 		if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
 		{
-			FOnDamageAppliedNative NativeDelegate;
-			NativeDelegate.BindUObject(this, &UGASC_UI_DamageNumberPanel::OnDamageApplied_Event);
-			Subsys->RegisterNativeDamageAppliedListener(this, MoveTemp(NativeDelegate));
-			
+			FOnDamageAppliedNative DamageDelegate;
+			DamageDelegate.BindUObject(this, &UGASC_UI_DamageNumberPanel::OnDamageApplied_Event);
+			Subsys->RegisterNativeDamageAppliedListener(this, MoveTemp(DamageDelegate));
+
 			FOnHealingReceivedNative HealingDelegate;
 			HealingDelegate.BindUObject(this, &UGASC_UI_DamageNumberPanel::OnHealingReceived_Event);
 			Subsys->RegisterNativeHealingReceivedListener(this, MoveTemp(HealingDelegate));
 		}
 	}
 
-	// Load DamageTypeUIData
+	// Load damage UI data
 	const UGASC_AbilitySystemSettings* Settings = UGASC_AbilitySystemSettings::Get();
-	TSoftObjectPtr<UGASCourseDamageTypeUIData> AssetRef = Settings->DamageTypeUIData;
+	if (!Settings)
+		return;
 
-	if (!AssetRef.IsValid() && !AssetRef.IsNull())
-	{
-		FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
-		Streamable.RequestAsyncLoad(
-			AssetRef.ToSoftObjectPath(),
-			FStreamableDelegate::CreateLambda([AssetRef, this]()
-			{
-				if (UGASCourseDamageTypeUIData* LoadedAsset = AssetRef.Get())
-				{
-					DamageTypeUIData = LoadedAsset;
-					GenerateDamageNumberPool();
-				}
-			}));
-	}
-	else if (AssetRef.IsValid())
+	const TSoftObjectPtr<UGASCourseDamageTypeUIData> AssetRef = Settings->DamageTypeUIData;
+
+	if (AssetRef.IsValid())
 	{
 		DamageTypeUIData = AssetRef.Get();
 		GenerateDamageNumberPool();
 	}
+	else if (!AssetRef.IsNull())
+	{
+		FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
+		Streamable.RequestAsyncLoad(
+			AssetRef.ToSoftObjectPath(),
+			FStreamableDelegate::CreateWeakLambda(this, [this, AssetRef]()
+			{
+				if (UGASCourseDamageTypeUIData* Loaded = AssetRef.Get())
+				{
+					DamageTypeUIData = Loaded;
+					GenerateDamageNumberPool();
+				}
+			})
+		);
+	}
+}
 
-	OwningPlayerController = GetOwningPlayer();
-	if (!OwningPlayerController)
-		OwningPlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+void UGASC_UI_DamageNumberPanel::NativeDestruct()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		{
+			Subsys->UnregisterNativeDamageListener(this);
+		}
+	}
+
+	DamageNumberWorldPositions.Empty();
+	FreeDamageNumbers.Empty();
+	DamageNumberPool.Empty();
+
+	Super::NativeDestruct();
 }
 
 void UGASC_UI_DamageNumberPanel::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -68,56 +91,276 @@ void UGASC_UI_DamageNumberPanel::NativeTick(const FGeometry& MyGeometry, float I
 	if (DamageNumberWorldPositions.IsEmpty())
 		return;
 
-	const FGeometry& CachedGeometry = GetCachedGeometry();
-	TArray<TWeakObjectPtr<UGASC_UI_DamageNumber>> KeysToRemove;
+	TArray<UGASC_UI_DamageNumber*> ToRemove;
 
-	for (auto& Pair : DamageNumberWorldPositions)
+	for (const auto& Pair : DamageNumberWorldPositions)
 	{
-		TWeakObjectPtr<UGASC_UI_DamageNumber> WeakDamageNumber = Pair.Key;
-		UGASC_UI_DamageNumber* Current = WeakDamageNumber.Get();
-		if (!IsValid(Current) ||
-			!IsValid(Current->DamageModContext.HitContext.HitTarget.Get()))
+		UGASC_UI_DamageNumber* DamageNumber = Pair.Key;
+		if (!IsValid(DamageNumber))
 		{
-			KeysToRemove.Add(WeakDamageNumber);
+			ToRemove.Add(DamageNumber);
 			continue;
 		}
 
-		FVector WorldLocation = Pair.Value;
-
-		TOptional<FVector2D> MaybePos = GetDamagePositionOnScreen(WorldLocation, Current->DamageModContext.HitContext.HitTarget.Get(), *Current);
-		if (!MaybePos.IsSet())
+		const FDamageModificationContext& Context = DamageNumber->DamageModContext;
+		const AActor* Target = Context.HitContext.HitTarget.Get();
+		if (!IsValid(Target))
 		{
-			Current->SetVisibility(ESlateVisibility::Collapsed);
+			DamageNumber->SetVisibility(ESlateVisibility::Collapsed);
+			ToRemove.Add(DamageNumber);
 			continue;
 		}
 
-		if (UCanvasPanelSlot* CanvasSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(Current))
+		const FVector WorldLocation = Pair.Value;
+		TOptional<FVector2D> LocalPos =
+			GetDamagePositionOnScreen(WorldLocation, Target, *DamageNumber);
+
+		if (!LocalPos.IsSet())
 		{
-			CanvasSlot->SetPosition(MaybePos.GetValue());
-			Current->SetVisibility(ESlateVisibility::Visible);
+			DamageNumber->SetVisibility(ESlateVisibility::Collapsed);
+			continue;
+		}
+
+		if (UCanvasPanelSlot* DamageNumberSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(DamageNumber))
+		{
+			DamageNumberSlot->SetPosition(LocalPos.GetValue());
+			DamageNumber->SetVisibility(ESlateVisibility::Visible);
 		}
 	}
 
-	for (auto& Key : KeysToRemove)
+	for (UGASC_UI_DamageNumber* W : ToRemove)
 	{
-		DamageNumberWorldPositions.Remove(Key);
+		DamageNumberWorldPositions.Remove(W);
 	}
 }
 
-void UGASC_UI_DamageNumberPanel::NativeDestruct()
-{
-	Super::NativeDestruct();
+/* ============================
+ *  Pooling
+ * ============================ */
 
-	if (AActor* OwningActor = GetOwningPlayerPawn())
+void UGASC_UI_DamageNumberPanel::GenerateDamageNumberPool()
+{
+	if (!IsValid(DamageNumberClass) || !IsValid(DamageNumberPanel))
+		return;
+
+	DamageNumberPool.Reserve(PoolSize);
+	FreeDamageNumbers.Reserve(PoolSize);
+
+	for (int32 i = DamageNumberPool.Num(); i < PoolSize; ++i)
 	{
-		if (UWorld* World = OwningActor->GetWorld())
+		UGASC_UI_DamageNumber* NewWidget =
+			CreateWidget<UGASC_UI_DamageNumber>(GetWorld(), DamageNumberClass);
+
+		if (!IsValid(NewWidget))
+			break;
+
+		NewWidget->SetVisibility(ESlateVisibility::Collapsed);
+		NewWidget->DamageTypeUIData = DamageTypeUIData;
+
+		DamageNumberPanel->AddChild(NewWidget);
+
+		NewWidget->OnDamageNumberRemovedDelegate.AddDynamic(
+			this, &UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved);
+
+		DamageNumberPool.Add(NewWidget);
+		FreeDamageNumbers.Add(NewWidget);
+	}
+}
+
+UGASC_UI_DamageNumber* UGASC_UI_DamageNumberPanel::GetPooledDamageNumber()
+{
+	// 1) Reuse from free list first
+	while (FreeDamageNumbers.Num() > 0)
+	{
+		UGASC_UI_DamageNumber* W = FreeDamageNumbers.Pop(EAllowShrinking::No);
+		if (IsValid(W))
 		{
-			if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
-			{
-				Subsys->UnregisterNativeDamageListener(this);
-			}
+			W->DamageTypeUIData = DamageTypeUIData;
+			return W;
 		}
 	}
+
+	// 2) Pool exhausted → create a new widget (overflow)
+	if (!IsValid(DamageNumberClass) || !IsValid(DamageNumberPanel))
+		return nullptr;
+
+	UGASC_UI_DamageNumber* NewWidget =
+		CreateWidget<UGASC_UI_DamageNumber>(GetWorld(), DamageNumberClass);
+
+	if (!IsValid(NewWidget))
+		return nullptr;
+
+	NewWidget->SetVisibility(ESlateVisibility::Collapsed);
+	NewWidget->DamageTypeUIData = DamageTypeUIData;
+
+	DamageNumberPanel->AddChild(NewWidget);
+
+	NewWidget->OnDamageNumberRemovedDelegate.AddDynamic(
+		this, &UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved);
+
+	// Important: track it like any other pooled widget
+	DamageNumberPool.Add(NewWidget);
+
+	return NewWidget;
+}
+
+
+void UGASC_UI_DamageNumberPanel::ReturnToDamageNumberPool(UGASC_UI_DamageNumber* DamageNumber)
+{
+	if (!IsValid(DamageNumber))
+		return;
+
+	DamageNumber->SetVisibility(ESlateVisibility::Collapsed);
+	DamageNumber->DamageModContext = FDamageModificationContext();
+
+	DamageNumberWorldPositions.Remove(DamageNumber);
+	FreeDamageNumbers.Add(DamageNumber);
+}
+
+void UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved(UGASC_UI_DamageNumber* DamageNumber)
+{
+	ReturnToDamageNumberPool(DamageNumber);
+}
+
+/* ============================
+ *  Damage Events
+ * ============================ */
+
+void UGASC_UI_DamageNumberPanel::OnDamageApplied_Event(
+	const FDamageModificationContext& DamageContext)
+{
+	if (!DamageContext.HitContext.HitTarget.IsValid())
+		return;
+
+	const FDamageModificationContext Captured = DamageContext;
+
+	AsyncTask(ENamedThreads::GameThread, [this, Captured]()
+	{
+		if (!IsValid(this))
+			return;
+
+		AddHitDamageTextFromContext(Captured);
+
+		if (Captured.bCriticalModification)
+		{
+			AddCriticalHitDamageTextFromContext(Captured);
+		}
+	});
+}
+
+void UGASC_UI_DamageNumberPanel::OnHealingReceived_Event(
+	const FDamageModificationContext& HealingContext)
+{
+	if (!HealingContext.HitContext.HitTarget.IsValid())
+		return;
+
+	const FDamageModificationContext Captured = HealingContext;
+
+	AsyncTask(ENamedThreads::GameThread, [this, Captured]()
+	{
+		if (!IsValid(this))
+			return;
+
+		AddHitDamageTextFromContext(Captured);
+
+		if (Captured.bCriticalModification)
+		{
+			AddCriticalHitDamageTextFromContext(Captured);
+		}
+	});
+}
+
+/* ============================
+ *  Damage Creation
+ * ============================ */
+
+void UGASC_UI_DamageNumberPanel::AddHitDamageTextFromContext(
+	const FDamageModificationContext& Context)
+{
+	if (!Context.HitContext.HitTarget.IsValid())
+		return;
+
+	//TODO check for resistance as well
+	if (FMath::RoundToInt(Context.DeltaValue) == 0 && !Context.bDamageResisted)
+		return;
+
+	UGASC_UI_DamageNumber* W = GetPooledDamageNumber();
+	if (!IsValid(W))
+		return;
+
+	W->bIsCriticalHit = false;
+	W->DamageModContext = Context;
+
+	W->SetVisibility(ESlateVisibility::Visible);
+	W->ForceLayoutPrepass();
+
+	if (W->DamageText)
+	{
+		W->SetDamageTextValue();
+	}
+
+	const FVector WorldPos =
+		GetDamageNumberWorldPosition(Context.HitContext, *W);
+
+	DamageNumberWorldPositions.Add(W, WorldPos);
+}
+
+void UGASC_UI_DamageNumberPanel::AddCriticalHitDamageTextFromContext(
+	const FDamageModificationContext& Context)
+{
+	if (!Context.HitContext.HitTarget.IsValid())
+		return;
+
+	UGASC_UI_DamageNumber* W = GetPooledDamageNumber();
+	if (!IsValid(W))
+		return;
+
+	W->bIsCriticalHit = true;
+	W->DamageModContext = Context;
+
+	W->SetVisibility(ESlateVisibility::Visible);
+	W->ForceLayoutPrepass();
+
+	if (W->DamageText)
+	{
+		W->SetCriticalHitText();
+	}
+
+	const FVector WorldPos =
+		GetDamageNumberWorldPosition(Context.HitContext, *W);
+
+	DamageNumberWorldPositions.Add(W, WorldPos);
+}
+
+/* ============================
+ *  World → Screen
+ * ============================ */
+
+FVector UGASC_UI_DamageNumberPanel::GetDamageNumberWorldPosition(
+	const FHitContext& HitContext,
+	const UGASC_UI_DamageNumber& DamageNumber) const
+{
+	const AActor* Target = HitContext.HitTarget.Get();
+	if (!IsValid(Target))
+		return FVector::ZeroVector;
+
+	const FHitResult& HR = HitContext.HitResult;
+
+	FVector WorldPos = HR.bBlockingHit
+	? FVector(HR.ImpactPoint)
+	: Target->GetActorLocation();
+
+	if (DamageNumber.bIsCriticalHit)
+	{
+		return Target->GetActorLocation() + FVector(0.f, 0.f, 130.f);
+	}
+
+	const float Spread = 20.f;
+	WorldPos.X += FMath::FRandRange(-Spread, Spread);
+	WorldPos.Y += FMath::FRandRange(-Spread, Spread);
+	WorldPos.Z += FMath::FRandRange(Spread, Spread * 3.f);
+
+	return WorldPos;
 }
 
 TOptional<FVector2D> UGASC_UI_DamageNumberPanel::GetDamagePositionOnScreen(
@@ -155,236 +398,6 @@ TOptional<FVector2D> UGASC_UI_DamageNumberPanel::GetDamagePositionOnScreen(
 			return FinalDamageOutPosition;
 		}
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("Failed damage number position calculation, returning 0,0"));
+	
 	return OutDamageScreenPosition;
-}
-
-UGASC_UI_DamageNumber* UGASC_UI_DamageNumberPanel::GetPooledDamageNumber()
-{
-	if (DamageNumberPoolIndex < DamageNumberPool.Num())
-	{
-		UGASC_UI_DamageNumber* DamageNumber = DamageNumberPool[DamageNumberPoolIndex];
-		if (DamageNumber && DamageNumber->GetVisibility() == ESlateVisibility::Collapsed)
-		{
-			DamageNumberPoolIndex++;
-			DamageNumber->DamageTypeUIData = DamageTypeUIData;
-
-			if (!DamageNumber->OnDamageNumberRemovedDelegate.IsAlreadyBound(
-				this, &UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved))
-			{
-				DamageNumber->OnDamageNumberRemovedDelegate.AddDynamic(
-					this, &UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved);
-			}
-			return DamageNumber;
-		}
-	}
-
-	// Create new widget if needed
-	if (DamageNumberPool.Num() < PoolSize && IsValid(DamageNumberClass))
-	{
-		UGASC_UI_DamageNumber* NewDamageNumber =
-			CreateWidget<UGASC_UI_DamageNumber>(GetWorld(), DamageNumberClass);
-
-		NewDamageNumber->SetVisibility(ESlateVisibility::Collapsed);
-		NewDamageNumber->DamageTypeUIData = DamageTypeUIData;
-
-		DamageNumberPanel->AddChild(NewDamageNumber);
-		DamageNumberPool.Add(NewDamageNumber);
-		DamageNumberPoolIndex++;
-
-		NewDamageNumber->OnDamageNumberRemovedDelegate.AddDynamic(
-			this, &UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved);
-
-		return NewDamageNumber;
-	}
-
-	return nullptr;
-}
-
-void UGASC_UI_DamageNumberPanel::ReturnToDamageNumberPool(UGASC_UI_DamageNumber* DamageNumber)
-{
-	if (!DamageNumber)
-		return;
-
-	DamageNumber->SetVisibility(ESlateVisibility::Collapsed);
-	DamageNumber->OnDamageNumberRemovedDelegate.RemoveAll(this);
-	DamageNumberPool.Remove(DamageNumber);
-	DamageNumberWorldPositions.Remove(DamageNumber);
-	DamageNumber->DamageModContext = FDamageModificationContext();
-
-	int32 Index = DamageNumberPool.Find(DamageNumber);
-	if (Index != INDEX_NONE && Index >= DamageNumberPoolIndex)
-	{
-		DamageNumberPool.Swap(Index, DamageNumberPoolIndex - 1);
-		DamageNumberPoolIndex--;
-	}
-}
-
-void UGASC_UI_DamageNumberPanel::OnDamageApplied_Event(
-	const FDamageModificationContext& DamageContext)
-{
-	if (!DamageContext.HitContext.HitTarget.IsValid())
-		return;
-
-	FDamageModificationContext CapturedContext = DamageContext;
-
-	AsyncTask(ENamedThreads::GameThread, [this, CapturedContext]()
-	{
-		if (!IsValid(this))
-			return;
-
-		if (!CapturedContext.HitContext.HitTarget.IsValid())
-			return;
-
-		DamageModificationContext = CapturedContext;
-
-		AddHitDamageText();
-
-		if (CapturedContext.bCriticalModification)
-		{
-			bIsCriticalDamage = true;
-			AddCriticalHitDamageText();
-		}
-	});
-}
-
-void UGASC_UI_DamageNumberPanel::OnHealingReceived_Event(const FDamageModificationContext& HealingContext)
-{
-	if (!HealingContext.HitContext.HitTarget.IsValid())
-		return;
-
-	FDamageModificationContext CapturedContext = HealingContext;
-
-	AsyncTask(ENamedThreads::GameThread, [this, CapturedContext]()
-	{
-		if (!IsValid(this))
-			return;
-
-		if (!CapturedContext.HitContext.HitTarget.IsValid())
-			return;
-
-		DamageModificationContext = CapturedContext;
-
-		AddHitDamageText();
-
-		if (CapturedContext.bCriticalModification)
-		{
-			bIsCriticalDamage = true;
-			AddCriticalHitDamageText();
-		}
-	});
-}
-
-void UGASC_UI_DamageNumberPanel::AddCriticalHitDamageText_Implementation()
-{
-	if (!DamageNumberClass || !DamageNumberClass->IsValidLowLevel())
-		return;
-
-	UGASC_UI_DamageNumber* DamageNumber = GetPooledDamageNumber();
-	if (!DamageNumber ||
-		!DamageModificationContext.HitContext.HitTarget.IsValid())
-		return;
-
-	DamageNumber->bIsCriticalHit = true;
-	DamageNumber->DamageModContext = DamageModificationContext;
-
-	if (DamageNumber->DamageText)
-		DamageNumber->SetCriticalHitText();
-
-	DamageNumber->SetVisibility(ESlateVisibility::Visible);
-	DamageNumber->ForceLayoutPrepass();
-
-	FVector WorldPos =
-		GetDamageNumberWorldPosition(DamageModificationContext.HitContext, *DamageNumber);
-
-	DamageNumberWorldPositions.Add(DamageNumber, WorldPos);
-}
-
-void UGASC_UI_DamageNumberPanel::AddHitDamageText_Implementation()
-{
-	if (!DamageNumberClass || !DamageNumberClass->IsValidLowLevel())
-		return;
-
-	if (FMath::RoundToInt(DamageModificationContext.DeltaValue) == 0)
-	{
-		return;
-	}
-	UGASC_UI_DamageNumber* DamageNumber = GetPooledDamageNumber();
-	if (!DamageNumber ||
-		!DamageModificationContext.HitContext.HitTarget.IsValid())
-		return;
-
-	DamageNumber->bIsCriticalHit = false;
-	DamageNumber->DamageModContext = DamageModificationContext;
-
-	if (DamageNumber->DamageText)
-		DamageNumber->SetDamageTextValue();
-
-	DamageNumber->SetVisibility(ESlateVisibility::Visible);
-	DamageNumber->ForceLayoutPrepass();
-
-	FVector WorldPos =
-		GetDamageNumberWorldPosition(DamageModificationContext.HitContext, *DamageNumber);
-
-	DamageNumberWorldPositions.Add(DamageNumber, WorldPos);
-}
-
-void UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved(UGASC_UI_DamageNumber* DamageNumber)
-{
-	ReturnToDamageNumberPool(DamageNumber);
-}
-
-void UGASC_UI_DamageNumberPanel::GenerateDamageNumberPool()
-{
-	DamageNumberPool.Reserve(PoolSize);
-
-	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
-	{
-		if (DamageNumberPool.Num() < PoolSize && IsValid(DamageNumberClass))
-		{
-			UGASC_UI_DamageNumber* NewDamageNumber =
-				CreateWidget<UGASC_UI_DamageNumber>(GetWorld(), DamageNumberClass);
-
-			NewDamageNumber->SetVisibility(ESlateVisibility::Collapsed);
-			NewDamageNumber->DamageTypeUIData = DamageTypeUIData;
-
-			DamageNumberPanel->AddChild(NewDamageNumber);
-			DamageNumberPool.Add(NewDamageNumber);
-		}
-
-		if (DamageNumberPool.Num() < PoolSize)
-		{
-			GenerateDamageNumberPool();
-		}
-	});
-
-	DamageNumberPanel->InvalidateLayoutAndVolatility();
-}
-
-FVector UGASC_UI_DamageNumberPanel::GetDamageNumberWorldPosition(
-	const FHitContext& HitContext,
-	const UGASC_UI_DamageNumber& DamageNumber) const
-{
-	const AActor* Target = HitContext.HitTarget.Get();
-	if (!IsValid(Target))
-		return FVector::ZeroVector;
-
-	FHitResult HR = HitContext.HitResult;
-	FVector WorldPos = HR.bBlockingHit
-		? HR.ImpactPoint
-		: (Target->GetActorLocation() + FVector(0, 0, 0.f));
-	
-	if (DamageNumber.bIsCriticalHit)
-	{
-		FVector2D DamageNumberUISize = DamageNumber.GetDesiredSize();
-		return Target->GetActorLocation() + FVector(DamageNumberUISize.X, DamageNumberUISize.Y, 130.0f);
-	}
-	
-	float Spread = 20.f;
-	WorldPos.X += FMath::FRandRange(-Spread, Spread);
-	WorldPos.Y += FMath::FRandRange(-Spread, Spread);
-	WorldPos.Z += FMath::FRandRange(Spread, Spread*3.0f);
-
-	return WorldPos;
 }

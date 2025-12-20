@@ -139,5 +139,4 @@ public:
 private:
 
 	bool IsActiveAbilitySlotAvailable(UGASCourseAbilitySystemComponent* ASC, FGameplayTag& AvailableSlotTag) const;
-	
 };

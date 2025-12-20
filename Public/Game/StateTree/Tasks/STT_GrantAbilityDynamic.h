@@ -19,18 +19,16 @@ struct FInstanceDataAbilityData
 	UPROPERTY(EditAnywhere, Category="Ability")
 	FInstancedPropertyBag AbilityParams;
 
-	/** Handle of the granted ability so we can remove it on exit */
-	FGameplayAbilitySpecHandle GrantedAbilityHandle;
-
 	/** Delegate binding handle for OnAbilityEnded */
 	FDelegateHandle AbilityEndedDelegateHandle;
-
-	/** Delegate binding handle for OnAbilityFailed*/
-	FDelegateHandle AbilityFailedDelegateHandle;
 	
-	bool bAbilityEnded = false;
 	bool bAbilityCancelled = false;
 	bool bAbilityFailed = false;
+	
+	FGameplayAbilitySpecHandle GrantedHandle;
+	bool bGrantedByTask   = false;
+	bool bActivated       = false;
+	bool bAbilityEnded    = false;
 
 };
 

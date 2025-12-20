@@ -24,7 +24,12 @@ public class GASCourse : ModuleRules
 			"NavigationSystem",
 			"TargetingSystem",
 			"ModelViewViewModel",
-			"NiagaraUIRenderer"
+			"NiagaraUIRenderer",
+			"MassEntity",
+			"MassCommon",
+			"MassMovement",
+			"MassSpawner",
+			"MassRepresentation"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]

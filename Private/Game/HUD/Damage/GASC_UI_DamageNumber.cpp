@@ -13,6 +13,16 @@ void UGASC_UI_DamageNumber::NativePreConstruct()
 	Super::NativePreConstruct();
 }
 
+void UGASC_UI_DamageNumber::BroadcastOnDamageNumberRemoved()
+{
+	if (OnDamageNumberRemovedDelegate.IsBound())
+	{
+		OnDamageNumberRemovedDelegate.Broadcast(this);
+	}
+	
+	DamageResistanceIcon->SetVisibility(ESlateVisibility::Hidden);
+}
+
 void UGASC_UI_DamageNumber::SetDamageTextValue_Implementation()
 {
 	// Basic safety checks
@@ -24,11 +34,17 @@ void UGASC_UI_DamageNumber::SetDamageTextValue_Implementation()
 
 	// Pipeline type (Damage vs Healing) now comes from the unified damage pipeline
 	const bool bIsHealing = (DamageModContext.DamagePipelineType == EGASC_DamagePipelineType::Healing);
+	const bool bDamageResisted = DamageModContext.bDamageResisted;
 	const float RawValue   = DamageModContext.DeltaValue;
 	const int32 Rounded    = FMath::RoundToInt(RawValue);
-	if (Rounded == 0)
+	if (Rounded == 0 && !bDamageResisted)
 	{
 		return;
+	}
+	
+	if (bDamageResisted)
+	{
+		DamageResistanceIcon->SetVisibility(ESlateVisibility::Visible);
 	}
 
 	// Choose sign / text formatting
@@ -53,6 +69,7 @@ void UGASC_UI_DamageNumber::SetDamageTextValue_Implementation()
 
 	const FLinearColor Color = DamageTypeUIData->GetDamageTypeColor(DamageTypeTag);
 	DamageText->SetColorAndOpacity(Color);
+	DamageResistanceIcon->SetColorAndOpacity(Color);
 }
 
 void UGASC_UI_DamageNumber::SetCriticalHitText_Implementation()

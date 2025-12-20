@@ -1,15 +1,13 @@
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "GASC_UI_DamageNumber.h"
 #include "GASC_UI_DamageNumberPanel.generated.h"
 
 /**
- * @class UGASC_UI_DamageNumberPanel
- * Displays floating damage numbers using world-space tracking.
- * Now uses world positions instead of local offsets, ensuring proper positioning
- * across all screen resolutions and DPI modes.
+ * Displays floating damage/healing numbers using a pooled widget system.
+ * World-space positions are tracked and converted to widget space each tick
+ * in a DPI-safe way.
  */
 UCLASS()
 class GASCOURSE_API UGASC_UI_DamageNumberPanel : public UUserWidget
@@ -18,71 +16,96 @@ class GASCOURSE_API UGASC_UI_DamageNumberPanel : public UUserWidget
 
 public:
 
+	//~UUserWidget interface
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 	virtual void NativeDestruct() override;
+	//~End interface
 
-	/** Panel into which damage number widgets are added */
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage, meta=(BindWidget))
+	/** Canvas panel that owns all damage number widgets */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Damage", meta = (BindWidget))
 	class UCanvasPanel* DamageNumberPanel;
 
-	/** Handles incoming damage events */
+	/** Maximum number of pooled widgets */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Damage")
+	int32 PoolSize = 100;
+
+	/** Damage number widget class */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Damage")
+	TSubclassOf<UGASC_UI_DamageNumber> DamageNumberClass;
+
+	/** Called by the damage pipeline subsystem */
 	UFUNCTION()
 	void OnDamageApplied_Event(const FDamageModificationContext& DamageContext);
-	
+
+	/** Called by the damage pipeline subsystem */
 	UFUNCTION()
 	void OnHealingReceived_Event(const FDamageModificationContext& HealingContext);
 
-	UFUNCTION(BlueprintNativeEvent)
-	void AddCriticalHitDamageText();
+protected:
 
-	UFUNCTION(BlueprintNativeEvent)
-	void AddHitDamageText();
+	/* ============================
+	 *  Pooling
+	 * ============================ */
 
+	/** All widgets ever created */
+	UPROPERTY()
+	TArray<TObjectPtr<UGASC_UI_DamageNumber>> DamageNumberPool;
+
+	/** Widgets currently free and ready for reuse */
+	UPROPERTY()
+	TArray<TObjectPtr<UGASC_UI_DamageNumber>> FreeDamageNumbers;
+
+	/** Acquire a widget from the pool */
+	UGASC_UI_DamageNumber* GetPooledDamageNumber();
+
+	/** Return a widget back to the pool */
+	UFUNCTION()
+	void ReturnToDamageNumberPool(UGASC_UI_DamageNumber* DamageNumber);
+
+	/** Pre-allocates the pool */
+	void GenerateDamageNumberPool();
+
+	/* ============================
+	 *  Damage Display
+	 * ============================ */
+
+	/** Adds a normal hit damage/heal number using the provided context */
+	void AddHitDamageTextFromContext(const FDamageModificationContext& Context);
+
+	/** Adds a critical hit damage/heal number using the provided context */
+	void AddCriticalHitDamageTextFromContext(const FDamageModificationContext& Context);
+
+	/** Called by damage number widgets when their animation finishes */
 	UFUNCTION()
 	void OnDamageNumberRemoved(UGASC_UI_DamageNumber* DamageNumber);
 
-	UFUNCTION()
-	void GenerateDamageNumberPool();
+	/* ============================
+	 *  World → Screen Tracking
+	 * ============================ */
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage)
-	TSubclassOf<UGASC_UI_DamageNumber> DamageNumberClass;
-
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category=Damage)
-	FVector2D Position;
-
-private:
-
-	/** Indicates last damage event was critical */
-	bool bIsCriticalDamage = false;
-
-	FDamageModificationContext DamageModificationContext;
-
-	/** WORLD-SPACE positions where damage numbers should appear */
+	/** World-space positions for active damage numbers */
 	UPROPERTY()
-	TMap<TWeakObjectPtr<UGASC_UI_DamageNumber>, FVector> DamageNumberWorldPositions;
+	TMap<TObjectPtr<UGASC_UI_DamageNumber>, FVector> DamageNumberWorldPositions;
+
+	/** Computes initial world position for a damage number */
+	FVector GetDamageNumberWorldPosition(
+		const FHitContext& HitContext,
+		const UGASC_UI_DamageNumber& DamageNumber) const;
+
+	/** Converts world location to widget-local space (DPI safe) */
+	TOptional<FVector2D> GetDamagePositionOnScreen(
+		const FVector& WorldLocation,
+		const AActor* Target,
+		const UGASC_UI_DamageNumber& DamageNumber);
+
+	/* ============================
+	 *  Cached Data
+	 * ============================ */
 
 	UPROPERTY()
-	TArray<UGASC_UI_DamageNumber*> DamageNumberPool;
-
-	UPROPERTY()
-	UGASCourseDamageTypeUIData* DamageTypeUIData;
+	class UGASCourseDamageTypeUIData* DamageTypeUIData;
 
 	UPROPERTY()
 	APlayerController* OwningPlayerController;
-
-	UPROPERTY(EditAnywhere, Category=DamageUI)
-	int32 PoolSize = 100;
-
-	int32 DamageNumberPoolIndex = 0;
-
-	UGASC_UI_DamageNumber* GetPooledDamageNumber();
-
-	void ReturnToDamageNumberPool(UGASC_UI_DamageNumber* DamageNumber);
-
-	/** NEW — Computes the world position for a given damage number */
-	FVector GetDamageNumberWorldPosition(const FHitContext& HitContext, const UGASC_UI_DamageNumber& DamageNumber) const;
-
-	/** NEW — Converts world → screen → widget space (DPI-safe) */
-	TOptional<FVector2D> GetDamagePositionOnScreen(const FVector& WorldLocation, const AActor* Target, const UGASC_UI_DamageNumber& DamageNumber);
 };

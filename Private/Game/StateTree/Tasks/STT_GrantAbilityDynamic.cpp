@@ -4,6 +4,7 @@
 #include "Game/StateTree/Tasks/STT_GrantAbilityDynamic.h"
 #include "StateTreeExecutionContext.h"
 #include "AbilitySystemComponent.h"
+#include "GameplayAbilitySpec.h"
 #include "Game/GameplayAbilitySystem/GameplayAbilities/GASC_AbilityParamsObject.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "StructUtils/PropertyBag.h"
@@ -13,160 +14,178 @@
 #include "UObject/UnrealType.h"
 #endif
 
-EStateTreeRunStatus FGrantAbilityDynamicTask::EnterState(FStateTreeExecutionContext& Context,
+EStateTreeRunStatus FGrantAbilityDynamicTask::EnterState(
+	FStateTreeExecutionContext& Context,
 	const FStateTreeTransitionResult&) const
 {
 	FInstanceDataAbilityData& Data = Context.GetInstanceData(*this);
 
-	if (!AbilityClass)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No AbilityClass set."));
-		return EStateTreeRunStatus::Failed;
-	}
-
-	// Find ASC on the StateTree owner actor
-	AActor* OwnerActor = Cast<AActor>(Context.GetOwner());
-	if (!OwnerActor)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner actor."));
-		return EStateTreeRunStatus::Failed;
-	}
-	AController* Controller = Cast<AController>(OwnerActor);
-	if (!Controller)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner controller."));
-		return EStateTreeRunStatus::Failed;
-	}
-
-	AGASCourseCharacter* Character = Cast<AGASCourseCharacter>(Controller->GetPawn());
-	if (!Character)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner actor."));
-		return EStateTreeRunStatus::Failed;
-	}
-
-	UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent();
-	if (!ASC)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No AbilitySystemComponent on %s."), *OwnerActor->GetName());
-		return EStateTreeRunStatus::Failed;
-	}
-	
-
-	UGASC_AbilityParamsObject* ParamsObject = NewObject<UGASC_AbilityParamsObject>(OwnerActor);
-	ParamsObject->InitFromBag(Data.AbilityParams);
-
-	// Grant the ability
-	FGameplayAbilitySpec Spec(AbilityClass, 1, INDEX_NONE, ParamsObject);
-	FGameplayAbilitySpecHandle Handle = ASC->GiveAbility(Spec);
-	FGameplayAbilitySpec* GivenSpec = ASC->FindAbilitySpecFromHandle(Handle);
-
-	if (!Handle.IsValid())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: Failed to give ability %s"), *AbilityClass->GetName());
-		return EStateTreeRunStatus::Failed;
-	}
-
-	Data.GrantedAbilityHandle = Handle;
-	
-	Data.AbilityEndedDelegateHandle = ASC->OnAbilityEnded.AddLambda(
-			[SpecHandle = Handle, &Data](const FAbilityEndedData& EndedData)
-			{
-				if (EndedData.AbilitySpecHandle == SpecHandle)
-				{
-					UE_LOG(LogTemp, Log, TEXT("Ability %s ended"), *EndedData.AbilityThatEnded->GetName());
-					Data.bAbilityEnded = true;
-				}
-			});
-	
-	Data.AbilityFailedDelegateHandle = ASC->AbilityFailedCallbacks.AddLambda(
-		[SpecHandle = Handle, &Data](const UGameplayAbility* FailedAbility, const FGameplayTagContainer& FailedTags)
-		{
-			if (FailedAbility->GetCurrentAbilitySpec()->Handle == SpecHandle)
-			{
-				UE_LOG(LogTemp, Log, TEXT("Ability %s failed"), *FailedAbility->GetName());
-				Data.bAbilityEnded = true;
-			}
-		});
-	
-
-	// Optionally activate immediately
-	ASC->TryActivateAbility(Handle);
+	Data.GrantedHandle    = FGameplayAbilitySpecHandle();
+	Data.bGrantedByTask   = false;
+	Data.bActivated       = false;
+	Data.bAbilityEnded    = false;
+	Data.AbilityEndedDelegateHandle.Reset();
 
 	return EStateTreeRunStatus::Running;
 }
 
-void FGrantAbilityDynamicTask::ExitState(FStateTreeExecutionContext& Context,
-	const FStateTreeTransitionResult& Transition) const
+void FGrantAbilityDynamicTask::ExitState(
+	FStateTreeExecutionContext& Context,
+	const FStateTreeTransitionResult&) const
 {
 	FInstanceDataAbilityData& Data = Context.GetInstanceData(*this);
 
 	AController* Controller = Cast<AController>(Context.GetOwner());
 	if (!Controller)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner controller."));
 		return;
-	}
 
-	AGASCourseCharacter* Character = Cast<AGASCourseCharacter>(Controller->GetPawn());
-	if (!Character)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner actor."));
+	APawn* Pawn = Controller->GetPawn();
+	if (!Pawn)
 		return;
-	}
 
-	UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent();
+	IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Pawn);
+	if (!ASI)
+		return;
+
+	UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
 	if (!ASC)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No AbilitySystemComponent on %s."), *Character->GetName());
 		return;
+
+	// Remove delegate
+	if (Data.AbilityEndedDelegateHandle.IsValid())
+	{
+		ASC->OnAbilityEnded.Remove(Data.AbilityEndedDelegateHandle);
+		Data.AbilityEndedDelegateHandle.Reset();
 	}
 
-	if (Data.GrantedAbilityHandle.IsValid())
+	// Remove ability ONLY if this task granted it
+	if (Data.bGrantedByTask && Data.GrantedHandle.IsValid())
 	{
-		ASC->ClearAbility(Data.GrantedAbilityHandle);
-		Data.GrantedAbilityHandle = FGameplayAbilitySpecHandle(); // reset
+		ASC->ClearAbility(Data.GrantedHandle);
+		Data.GrantedHandle = FGameplayAbilitySpecHandle();
 	}
 }
 
-EStateTreeRunStatus FGrantAbilityDynamicTask::Tick(FStateTreeExecutionContext& Context, const float DeltaTime) const
+
+
+EStateTreeRunStatus FGrantAbilityDynamicTask::Tick(
+    FStateTreeExecutionContext& Context,
+    const float DeltaTime) const
 {
-	FInstanceDataAbilityData& Data = Context.GetInstanceData(*this);
+    FInstanceDataAbilityData& Data = Context.GetInstanceData(*this);
+
+    if (!AbilityClass)
+        return EStateTreeRunStatus::Failed;
+
+    AController* Controller = Cast<AController>(Context.GetOwner());
+    if (!Controller)
+        return EStateTreeRunStatus::Failed;
+
+    APawn* Pawn = Controller->GetPawn();
+    if (!Pawn)
+        return EStateTreeRunStatus::Running;
+
+    IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(Pawn);
+    if (!ASI)
+        return EStateTreeRunStatus::Failed;
+
+    UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent();
+    if (!ASC)
+        return EStateTreeRunStatus::Failed;
 	
-	AController* Controller = Cast<AController>(Context.GetOwner());
-	if (!Controller)
+	if (Data.bAbilityEnded)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner controller."));
-		return EStateTreeRunStatus::Failed;
-	}
-
-	AGASCourseCharacter* Character = Cast<AGASCourseCharacter>(Controller->GetPawn());
-	if (!Character)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No owner actor."));
-		return EStateTreeRunStatus::Failed;
-	}
-
-	UAbilitySystemComponent* ASC = Character->GetAbilitySystemComponent();
-	if (!ASC)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GrantAbilityDynamic: No AbilitySystemComponent on %s."), *Character->GetName());
-		return EStateTreeRunStatus::Failed;
-	}
-
-	if (FGameplayAbilitySpec* Spec = ASC->FindAbilitySpecFromHandle(Data.GrantedAbilityHandle))
-	{
-		if (Spec->IsActive())
-		{
-			return EStateTreeRunStatus::Running;
-		}
-		
-		UE_LOG(LogTemp, Log, TEXT("Ability ended (polled)"));
 		return EStateTreeRunStatus::Succeeded;
 	}
 
-	return EStateTreeRunStatus::Failed;
+    // --------------------------------------------------
+    // 1. Wait for GAS readiness
+    // --------------------------------------------------
+    if (!ASC->AbilityActorInfo.IsValid())
+        return EStateTreeRunStatus::Running;
+
+    // --------------------------------------------------
+    // 2. Resolve spec (NEVER trust cached handle alone)
+    // --------------------------------------------------
+    FGameplayAbilitySpec* Spec = nullptr;
+
+    if (Data.GrantedHandle.IsValid())
+    {
+        Spec = ASC->FindAbilitySpecFromHandle(Data.GrantedHandle);
+    }
+
+    // --------------------------------------------------
+    // 3. Grant if needed (once)
+    // --------------------------------------------------
+    if (!Spec)
+    {
+        // Check if ability already exists (spam-safe)
+        Spec = ASC->FindAbilitySpecFromClass(AbilityClass);
+
+        if (!Spec)
+        {
+            UGASC_AbilityParamsObject* Params =
+                NewObject<UGASC_AbilityParamsObject>(Pawn);
+
+            Params->InitFromBag(Data.AbilityParams);
+
+            FGameplayAbilitySpec NewSpec(
+                AbilityClass,
+                1,
+                INDEX_NONE,
+                Params);
+
+            Data.GrantedHandle = ASC->GiveAbility(NewSpec);
+            Data.bGrantedByTask = true;
+
+            return EStateTreeRunStatus::Running;
+        }
+
+        // Ability already existed — reuse it
+        Data.GrantedHandle = Spec->Handle;
+    }
+
+    // --------------------------------------------------
+    // 4. Bind end delegate once
+    // --------------------------------------------------
+    if (!Data.AbilityEndedDelegateHandle.IsValid())
+    {
+        Data.AbilityEndedDelegateHandle =
+            ASC->OnAbilityEnded.AddLambda(
+                [&Data](const FAbilityEndedData& Ended)
+                {
+                    if (Ended.AbilitySpecHandle == Data.GrantedHandle)
+                    {
+                        Data.bAbilityEnded = true;
+                    }
+                });
+    }
+
+    // --------------------------------------------------
+    // 5. Activate once (spam-proof)
+    // --------------------------------------------------
+    if (!Spec->IsActive())
+    {
+    	UGameplayAbility* AbilityCDO = Spec->Ability;
+        if (!Data.bActivated && AbilityCDO->CanActivateAbility(Spec->Handle,
+        	ASC->AbilityActorInfo.Get(), nullptr, nullptr))
+        {
+            ASC->TryActivateAbility(Spec->Handle);
+            Data.bActivated = true;
+        }
+
+        return EStateTreeRunStatus::Running;
+    }
+
+    // --------------------------------------------------
+    // 6. Finish when ability ends
+    // --------------------------------------------------
+
+
+    return EStateTreeRunStatus::Running;
 }
+
+
 
 #if WITH_EDITOR
 
@@ -197,94 +216,86 @@ void FGrantAbilityDynamicTask::PostEditNodeChangeChainProperty(const FPropertyCh
 }
 #endif
 
-void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(FInstancedPropertyBag& Bag, TSubclassOf<UGameplayAbility> InAbilityClass)
+void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(
+    FInstancedPropertyBag& Bag,
+    TSubclassOf<UGameplayAbility> InAbilityClass)
 {
-	if (!InAbilityClass)
-	{
-		Bag.Reset();
-		return;
-	}
+    if (!InAbilityClass)
+    {
+        Bag.Reset();
+        return;
+    }
 
-	UGameplayAbility* AbilityCDO = AbilityClass->GetDefaultObject<UGameplayAbility>();
-	if (!AbilityCDO)
-	{
-		Bag.Reset();
-		return;
-	}
+    UGameplayAbility* AbilityCDO =
+        InAbilityClass->GetDefaultObject<UGameplayAbility>();
 
-	TArray<FPropertyBagPropertyDesc> Descs;
+    if (!AbilityCDO)
+    {
+        Bag.Reset();
+        return;
+    }
 
-	//const UClass* Class = InAbilityClass.Get();
+    TArray<FPropertyBagPropertyDesc> Descs;
 
-	if (UBlueprintGeneratedClass* BPClass = Cast<UBlueprintGeneratedClass>(AbilityClass))
-	{
-		for (TFieldIterator<FProperty> It(BPClass, EFieldIteratorFlags::IncludeSuper); It; ++It)
-		{
-			FProperty* Prop = *It;
-			UClass* PropOwner = Prop->GetOwner<UClass>();
+    if (UBlueprintGeneratedClass* BPClass =
+        Cast<UBlueprintGeneratedClass>(InAbilityClass))
+    {
+        for (TFieldIterator<FProperty> It(
+                 BPClass, EFieldIteratorFlags::IncludeSuper);
+             It; ++It)
+        {
+            FProperty* Prop = *It;
 
-			// Skip if property owner is not a Blueprint class (i.e., it's a C++ class)
-			if (!PropOwner || !Cast<UBlueprintGeneratedClass>(PropOwner))
-			{
-				continue; // Skip C++ properties
-			}
+            // Only Blueprint-visible editable properties
+            if (!Prop->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_Edit))
+                continue;
 
-			// Only include properties that are editable/visible in Blueprint
-			if (!Prop->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible))
-				continue;
-			
-			// Skip properties that are marked as DisableEditOnInstance
-			if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance))
-				continue;
+            // Skip per-instance-disabled
+            if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance))
+                continue;
 
-			// Skip deprecated properties
-			if (Prop->HasAnyPropertyFlags(CPF_Deprecated))
-				continue;
+            // Skip deprecated
+            if (Prop->HasAnyPropertyFlags(CPF_Deprecated))
+                continue;
 
-			UE_LOG(LogTemp, Log, TEXT("Adding BP property: %s from class: %s"), 
-				*Prop->GetName(), 
-				*PropOwner->GetName());
+            FPropertyBagPropertyDesc Desc(Prop->GetFName(), Prop);
+            if (Desc.ValueType != EPropertyBagPropertyType::None)
+            {
+                Descs.Add(MoveTemp(Desc));
+            }
+        }
+    }
 
-		
-			FPropertyBagPropertyDesc Desc(Prop->GetFName(), Prop);
-			if (Desc.ValueType != EPropertyBagPropertyType::None)
-			{
-				Descs.Add(MoveTemp(Desc));
-			}
-		}
-	}
-	
-	const UPropertyBag* BagStruct = UPropertyBag::GetOrCreateFromDescs(Descs);
-	Bag.InitializeFromBagStruct(BagStruct);
+    const UPropertyBag* BagStruct =
+        UPropertyBag::GetOrCreateFromDescs(Descs);
 
-	for (const FPropertyBagPropertyDesc& Desc : Bag.GetPropertyBagStruct()->GetPropertyDescs())
-	{
-		if (FProperty* SrcProp = AbilityCDO->GetClass()->FindPropertyByName(Desc.Name))
-		{
-			void* SrcPtr = SrcProp->ContainerPtrToValuePtr<void>(AbilityCDO);
-			if (!SrcPtr) continue;
+    Bag.InitializeFromBagStruct(BagStruct);
 
-			const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct();
-			if (!PBStruct)
-			{
-				return;
-			}
+    const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct();
+    if (!PBStruct)
+        return;
 
-			const FPropertyBagPropertyDesc* BagDesc = PBStruct->FindPropertyDescByName(Desc.Name);
-			if (!BagDesc)
-			{
-				return;
-			}
+    for (const FPropertyBagPropertyDesc& Desc :
+         PBStruct->GetPropertyDescs())
+    {
+        FProperty* SrcProp =
+            AbilityCDO->GetClass()->FindPropertyByName(Desc.Name);
 
-			// Get the destination address inside the bag and copy into it
+        if (!SrcProp)
+            continue;
 
-			// Copy from SrcProp/SrcPtr into the bag using the public API
-			EPropertyBagResult Res = Bag.SetValue(BagDesc->Name, SrcProp, AbilityCDO /* e.g., Ability */);
-			if (Res != EPropertyBagResult::Success)
-			{
-				// handle mismatch or missing property if needed
-			}
-		}
-	}
+        void* SrcPtr =
+            SrcProp->ContainerPtrToValuePtr<void>(AbilityCDO);
+
+        if (!SrcPtr)
+            continue;
+
+        EPropertyBagResult Res =
+            Bag.SetValue(Desc.Name, SrcProp, AbilityCDO);
+
+        if (Res != EPropertyBagResult::Success)
+        {
+            // Optional: log mismatch
+        }
+    }
 }
-

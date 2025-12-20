@@ -76,7 +76,8 @@ void UDamagePipelineDebugSubsystem::SimulateDamageFromID(uint32 DamageID)
 			}
 		}
 		DamagePipelineContext.GrantedTags = DamageLogEntry.HitContextTagsContainer;
-		DamagePipelineContext.GrantedTags.AddTagFast(DamageType_DebugSimulated);
+		//DamagePipelineContext.GrantedTags.AddTagFast(DamageType_DebugSimulated);
+		DamagePipelineContext.GrantedTags.AddTag(DamageType_DebugSimulated);
 		
 		if (UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
 		{
@@ -129,7 +130,7 @@ void UDamagePipelineDebugSubsystem::TempApplyAttributeModToInstigator(FDamageLog
 			
 			for (const FGameplayAttribute& Attribute : AllAttributes)
 			{
-				if (AttributeNames.Contains(Attribute.AttributeName))
+				if (AttributeNames.Contains(Attribute.AttributeName) && !Attribute.AttributeName.Contains("DamageMultiplier"))
 				{
 					float Original = InstigatorASC->GetNumericAttribute(Attribute);
 					float NewValue = DamageLogEntry.Attributes.FindChecked(Attribute.GetName());

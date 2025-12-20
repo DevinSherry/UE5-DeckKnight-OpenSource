@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "GameplayTagContainer.h"
 #include "NativeGameplayTags.h"
 
 class UGameplayTagsManager;
@@ -60,11 +59,10 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Root);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Physical);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Elemental);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Elemental_Fire);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Status);
-UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Status_Burn);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Critical);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Healing);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_DebugSimulated);
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(DamageType_Resistance);
 
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_Gameplay);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_OnDeath);

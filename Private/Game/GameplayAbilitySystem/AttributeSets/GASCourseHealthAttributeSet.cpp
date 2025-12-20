@@ -26,12 +26,7 @@ void UGASCourseHealthAttributeSet::PreAttributeChange(const FGameplayAttribute& 
 	{
 		AdjustAttributeForMaxChange(CurrentHealth, MaxHealth, NewValue, GetCurrentHealthAttribute());
 	}
-
-	if(Attribute == GetStatusDamageHealingCoefficientAttribute())
-	{
-		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
-	}
-
+	
 	if(Attribute == GetAllDamageHealingCoefficientAttribute())
 	{
 		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
@@ -51,16 +46,36 @@ void UGASCourseHealthAttributeSet::PreAttributeChange(const FGameplayAttribute& 
 	{
 		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
 	}
+	
 	if(Attribute == GetCriticalDamageMultiplierAttribute())
 	{
 		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 10.0f);
 	}
 	
+	if(Attribute == GetDamageResistanceMultiplierAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
+	}
+	
+	if(Attribute == GetDamageMultiplierAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
+	}
 }
 
 void UGASCourseHealthAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const
 {
 	Super::PreAttributeBaseChange(Attribute, NewValue);
+	
+	if(Attribute == GetDamageResistanceMultiplierAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
+	}
+	
+	if(Attribute == GetDamageMultiplierAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 1.0f);
+	}
 }
 
 void UGASCourseHealthAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue,
@@ -131,6 +146,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	// ---------------------------------------------------------------------
 	const bool bIsCritical         = DynamicTags.HasTagExact(DamageType_Critical);
 	const bool bIsDamageOverTime   = DynamicTags.HasTagExact(Data_DamageOverTime);
+	const bool bDamageResisted     = DynamicTags.HasTagExact(DamageType_Resistance);
 
 	FGameplayTag DamageTypeTag;
 	for (const FGameplayTag& Tag : DynamicTags)
@@ -140,11 +156,6 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 			DamageTypeTag = Tag;
 			break;
 		}
-	}
-
-	if (bIsCritical)
-	{
-		UE_LOGFMT(LogTemp, Warning, "Damage Modification was critical! {0}", __FUNCTION__);
 	}
 
 	// Convenience pointers to owned tag containers (no copying)
@@ -159,7 +170,12 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 		const float LocalDamage = GetIncomingDamage();
 		SetIncomingDamage(0.0f);
 
-		if (!TargetCharacter || !TargetASC || !World || LocalDamage <= 0.0f)
+		if (!TargetCharacter || !TargetASC || !World)
+		{
+			goto ClampHealth;
+		}
+		
+		if (LocalDamage <= 0.0f && !bDamageResisted)
 		{
 			goto ClampHealth;
 		}
@@ -184,6 +200,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 		MutableContext->DamageLogEntry.bIsCriticalHit = bIsCritical;
 		MutableContext->DamageLogEntry.bIsDamageEffect = true;
 		MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
+		MutableContext->DamageLogEntry.bDamageResisted = bDamageResisted;
 			
 		if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
 		{
@@ -197,6 +214,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 			FDamageModificationContext ModContext;
 			ModContext.bCriticalModification     = bIsCritical;
 			ModContext.bModificationOverTime     = bIsDamageOverTime;
+			ModContext.bDamageResisted           = bDamageResisted;
 			ModContext.bDamageModificationKilled = (NewHealth <= 0.0f && bWasAlive);
 			ModContext.DamagePipelineType        = Damage;
 			ModContext.DeltaValue                = LocalDamage;

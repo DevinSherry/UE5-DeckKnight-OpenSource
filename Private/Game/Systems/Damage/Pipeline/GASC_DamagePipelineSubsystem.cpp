@@ -828,6 +828,7 @@ FGameplayEffectSpecHandle UGASC_DamagePipelineSubsystem::ConstructDamageEffectSp
 		{
 			Spec->SetDuration(EffectOverTimeContext.EffectDuration, true);
 			Spec->Period = EffectOverTimeContext.EffectPeriod;
+			Spec->DynamicGrantedTags.AddTag(Data_DamageOverTime);
 		}
 	}
 
@@ -980,6 +981,7 @@ bool UGASC_DamagePipelineSubsystem::ApplyDamageToTarget_Internal(
 	// Tagging
 	DamageSpec->DynamicGrantedTags.AppendTags(DamageContext.GrantedTags);
 	DamageSpec->DynamicGrantedTags.AddTag(DamageContext.DamageType);
+	DamageSpec->AddDynamicAssetTag(DamageContext.DamageType);
 	
 	// 1. Get original context
 	FGameplayEffectContextHandle Original = DamageSpec->GetEffectContext();

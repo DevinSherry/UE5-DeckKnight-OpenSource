@@ -4,15 +4,11 @@
 #include "Game/Systems/Damage/GASCourseDamageExecution.h"
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseHealthAttributeSet.h"
 #include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemGlobals.h"
-#include "AIController.h"
 #include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
-#include "Game/GameplayAbilitySystem/GameplayEffect/Healing/GASC_HealingGameplayEffect.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
-#include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
 #include "Game/Systems/Healing/GASCourseHealingExecution.h"
 
 struct GASCourseDamageStatics
@@ -20,12 +16,16 @@ struct GASCourseDamageStatics
 	DECLARE_ATTRIBUTE_CAPTUREDEF(IncomingDamage);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalChance);
 	DECLARE_ATTRIBUTE_CAPTUREDEF(CriticalDamageMultiplier);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(DamageResistanceMultiplier);
+	DECLARE_ATTRIBUTE_CAPTUREDEF(DamageMultiplier);
 
 	GASCourseDamageStatics()
 	{
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, IncomingDamage, Source, true);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, CriticalChance, Source, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, CriticalDamageMultiplier, Source, false);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, DamageMultiplier, Source, false);
+		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, DamageResistanceMultiplier, Target, false);
 	}
 };
 
@@ -40,6 +40,8 @@ UGASCourseDamageExecution::UGASCourseDamageExecution()
 	RelevantAttributesToCapture.Add(DamageStatics().IncomingDamageDef);
 	RelevantAttributesToCapture.Add(DamageStatics().CriticalChanceDef);
 	RelevantAttributesToCapture.Add(DamageStatics().CriticalDamageMultiplierDef);
+	RelevantAttributesToCapture.Add(DamageStatics().DamageMultiplierDef);
+	RelevantAttributesToCapture.Add(DamageStatics().DamageResistanceMultiplierDef);
 }
 
 void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams,
@@ -77,12 +79,13 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 
 	bool bUsingCachedDamage = false;
 	bool bCriticalHit = false;
-	float Damage = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().IncomingDamageDef, EvaluationParameters, Damage);
+	float BaseDamage = 0.0f;
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().IncomingDamageDef, EvaluationParameters, BaseDamage);
 	// Add SetByCaller damage if it exists
-	Damage += FMath::Max<float>(Spec->GetSetByCallerMagnitude(Data_IncomingDamage, false, -1.0f), 0.0f);
+	BaseDamage += FMath::Max<float>(Spec->GetSetByCallerMagnitude(Data_IncomingDamage, false, -1.0f), 0.0f);
+	float ModifiedDamage = BaseDamage;
 	
-	GASCourseContext->DamageLogEntry.BaseDamageValue = Damage;
+	GASCourseContext->DamageLogEntry.BaseDamageValue = BaseDamage;
 
 	if (Spec->DynamicGrantedTags.HasTagExact(Data_DamageOverTime))
 	{
@@ -93,9 +96,9 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		}
 		if (CachedDamage > 0.0f)
 		{
-			Damage = CachedDamage;
+			ModifiedDamage = CachedDamage;
 			// Set the Target's damage meta attribute
-			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, Damage));
+			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, ModifiedDamage));
 			bUsingCachedDamage = true;
 		}
 	}
@@ -115,24 +118,49 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		bCriticalHit = (Roll <= CriticalChance);
 		if (bCriticalHit)
 		{
-			Damage += FMath::Floor(Damage * CriticalDamageMultiplier);
-			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().CriticalChanceProperty->GetName(), 
+			ModifiedDamage += FMath::Floor(ModifiedDamage * CriticalDamageMultiplier);
+			GASCourseContext->DamageLogEntry.Attributes.Add(GASCourseDamageStatics().CriticalChanceProperty->GetName(), 
 			CriticalChance);
-			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().CriticalDamageMultiplierProperty->GetName(), 
+			GASCourseContext->DamageLogEntry.Attributes.Add(GASCourseDamageStatics().CriticalDamageMultiplierProperty->GetName(), 
 			CriticalDamageMultiplier);
 			Spec->DynamicGrantedTags.AddTag(DamageType_Critical);
 		}
-
-		if (Damage > 0.f)
+		
+		//Grab any damage resistances from the target.
+		float DamageResistance = 0.0f;
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(GASCourseDamageStatics().DamageResistanceMultiplierDef, EvaluationParameters, DamageResistance);
+		
+		float DamageMultiplier = 0.0f;
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(GASCourseDamageStatics().DamageMultiplierDef, EvaluationParameters, DamageMultiplier);
+		if (DamageMultiplier > 0.0f)
 		{
-			// Set the Target's damage meta attribute
-			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, Damage));
+			ModifiedDamage += (ModifiedDamage * DamageMultiplier);
+			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().DamageMultiplierProperty->GetName(), 
+			DamageMultiplier);
 		}
 
-		//Store damage as cached damage
-		Spec->SetSetByCallerMagnitude(Data_CachedDamage, Damage);
+		if (DamageResistance > 0.0f)
+		{
+			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().DamageResistanceMultiplierProperty->GetName(), 
+			DamageResistance);
+			ModifiedDamage *= (1.0f - DamageResistance);
+			Spec->DynamicGrantedTags.AddTag(DamageType_Resistance);
+			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, ModifiedDamage));
+		}
+		else
+		{
+			if (ModifiedDamage > 0.f)
+			{
+				// Set the Target's damage meta attribute
+				OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, ModifiedDamage));
+			}
+		}
 		
-		GASCourseContext->DamageLogEntry.ModifiedDamageValue = Damage;
+
+		//Store damage as cached damage
+		Spec->SetSetByCallerMagnitude(Data_CachedDamage, ModifiedDamage);
+		
+		GASCourseContext->DamageLogEntry.ModifiedDamageValue = BaseDamage >= ModifiedDamage ?  BaseDamage - ModifiedDamage : ModifiedDamage - BaseDamage;
 	}
 	
 	if (UWorld* World = SourceActor->GetWorld())
@@ -141,10 +169,10 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		{
 			//TODO Add damage log entry for lifesteal labeling
 			World->GetTimerManager().SetTimerForNextTick(
-			FTimerDelegate::CreateLambda([this, DamagePipelineSubsystem, SourceActor, Damage]()
+			FTimerDelegate::CreateLambda([this, DamagePipelineSubsystem, SourceActor, ModifiedDamage]()
 			{
 					FDamagePipelineContext HealContext;
-					DamagePipelineSubsystem->ApplyHealToTarget(SourceActor, SourceActor, Damage, HealContext);
+					DamagePipelineSubsystem->ApplyHealToTarget(SourceActor, SourceActor, ModifiedDamage, HealContext);
 			}));
 		}
 	}
@@ -159,7 +187,7 @@ void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCust
 		FGameplayEventData DamageDealtPayload;
 		DamageDealtPayload.Instigator = SourceAbilitySystemComponent->GetAvatarActor();
 		DamageDealtPayload.Target = TargetAbilitySystemComponent->GetAvatarActor();
-		DamageDealtPayload.EventMagnitude = Damage;
+		DamageDealtPayload.EventMagnitude = ModifiedDamage;
 		DamageDealtPayload.ContextHandle = Spec->GetContext();
 		DamageDealtPayload.InstigatorTags = Spec->DynamicGrantedTags;
 		if (const FHitResult* HR = Spec->GetContext().GetHitResult())

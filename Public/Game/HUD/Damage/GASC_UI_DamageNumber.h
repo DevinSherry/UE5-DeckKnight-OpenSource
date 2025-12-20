@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Abilities/GameplayAbilityTypes.h"
+#include "Components/Image.h"
 #include "Blueprint/UserWidget.h"
 #include "Game/Systems/Damage/Data/GASCourseDamageTypeUIData.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
@@ -35,11 +35,9 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, meta=(BindWidget))
 	class UTextBlock* DamageText;
-
-	/*
-	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
-	FGameplayEventData DamageData;
-	*/
+	
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, meta=(BindWidget))
+	class UImage* DamageResistanceIcon;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
 	FDamageModificationContext DamageModContext;
@@ -55,6 +53,9 @@ public:
 
 	UFUNCTION(BlueprintNativeEvent, Category = "DamageNumber")
 	void SetCriticalHitText();
+	
+	UFUNCTION(BlueprintCallable)
+	void BroadcastOnDamageNumberRemoved();
 
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnDamageNumberRemoved OnDamageNumberRemovedDelegate;

@@ -13,7 +13,6 @@
 struct GASCourseHealingStatics
 {
 	DECLARE_ATTRIBUTE_CAPTUREDEF(IncomingHealing);
-	DECLARE_ATTRIBUTE_CAPTUREDEF(StatusDamageHealingCoefficient)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(ElementalDamageHealingCoefficient)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(PhysicalDamageHealingCoefficient)
 	DECLARE_ATTRIBUTE_CAPTUREDEF(AllDamageHealingCoefficient)
@@ -21,7 +20,6 @@ struct GASCourseHealingStatics
 	GASCourseHealingStatics()
 	{
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, IncomingHealing, Source, true);
-		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, StatusDamageHealingCoefficient, Target, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, ElementalDamageHealingCoefficient, Target, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, PhysicalDamageHealingCoefficient, Target, false);
 		DEFINE_ATTRIBUTE_CAPTUREDEF(UGASCourseHealthAttributeSet, AllDamageHealingCoefficient, Target, false);
@@ -36,8 +34,6 @@ static const GASCourseHealingStatics& HealingStatics()
 
 UGASCourseHealingExecution::UGASCourseHealingExecution()
 {
-	//RelevantAttributesToCapture.Add(HealingStatics().IncomingHealingDef);
-	RelevantAttributesToCapture.Add(HealingStatics().StatusDamageHealingCoefficientDef);
 	RelevantAttributesToCapture.Add(HealingStatics().ElementalDamageHealingCoefficientDef);
 	RelevantAttributesToCapture.Add(HealingStatics().PhysicalDamageHealingCoefficientDef);
 	RelevantAttributesToCapture.Add(HealingStatics().AllDamageHealingCoefficientDef);
@@ -100,14 +96,13 @@ void UGASCourseHealingExecution::Execute_Implementation(
 	// ==========================
 	// Instead of building a new container, use a reference to existing dynamic tags.
 	const FGameplayTagContainer& DynamicTags = Spec.DynamicGrantedTags;
-
-	const bool bHasStatus    = DynamicTags.HasTag(DamageType_Status);
+	
 	const bool bHasPhysical  = DynamicTags.HasTag(DamageType_Physical);
 	const bool bHasElemental = DynamicTags.HasTag(DamageType_Elemental);
 
 	// If no specific damage types, we only need AllHealingCoefficient.
 	const bool bHasSpecificType =
-		bHasStatus || bHasPhysical || bHasElemental;
+		bHasPhysical || bHasElemental;
 
 	// ==========================
 	// 3. CAPTURE ONLY NEEDED COEFFICIENTS
@@ -118,21 +113,12 @@ void UGASCourseHealingExecution::Execute_Implementation(
 		HealingStatics().AllDamageHealingCoefficientDef, EvalParams, AllHealingCoefficient);
 	GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().AllDamageHealingCoefficientProperty->GetName(), 
 	AllHealingCoefficient);
-
-	float StatusHealingCoefficient    = 0.0f;
+	
 	float ElementalHealingCoefficient = 0.0f;
 	float PhysicalHealingCoefficient  = 0.0f;
 
 	if (bHasSpecificType)
 	{
-		if (bHasStatus)
-		{
-			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
-				HealingStatics().StatusDamageHealingCoefficientDef, EvalParams, StatusHealingCoefficient);
-			GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().StatusDamageHealingCoefficientProperty->GetName(), 
-				StatusHealingCoefficient);
-		}
-
 		if (bHasElemental)
 		{
 			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
@@ -161,10 +147,6 @@ void UGASCourseHealingExecution::Execute_Implementation(
 	}
 	else
 	{
-		if (bHasStatus)
-		{
-			TotalHealing += Healing * StatusHealingCoefficient;
-		}
 		if (bHasPhysical)
 		{
 			TotalHealing += Healing * PhysicalHealingCoefficient;
