@@ -6,6 +6,7 @@
 #include "GameFramework/Pawn.h"
 #include "Game/Systems/Debugging/Panels/FGASCAttributesPanel.h"
 #include "Game/Systems/Debugging/Panels/FGASC_ActiveCardEnergyXPHistoryPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_CardHandUILayoutDebug.h"
 #include "Game/Systems/Debugging/Panels/FGASC_WaveManagerPanel.h"
 #include "Game/Systems/Debugging/Panels/GASCDamageEventsPanel.h"
 
@@ -31,6 +32,7 @@ void UGASC_DebugSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	DebugHub.RegisterDebugPanel(MakeShared<FGASC_ActiveCardEnergyXPHistoryPanel>());
 	DebugHub.RegisterDebugPanel(MakeShared<FGASC_WaveManagerPanel>());
 	DebugHub.RegisterDebugPanel(MakeShared<FGASCDamageEventsPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_CardHandUILayoutDebug>());
 }
 
 void UGASC_DebugSubsystem::Deinitialize()

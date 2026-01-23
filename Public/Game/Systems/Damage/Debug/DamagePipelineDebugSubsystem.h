@@ -5,6 +5,7 @@
 #include "AttributeSet.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "../Pipeline/GASC_DamagePipelineTypes.h"
+#include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
 #include "DamagePipelineDebugSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_DamagePipelineDebugSubsystem, Log, All);
@@ -36,6 +37,8 @@ class GASCOURSE_API UDamagePipelineDebugSubsystem : public UWorldSubsystem
 	
 public:
 	
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	
 	UFUNCTION()
 	void LogDamageEvent(const FDamageLogEntry& DamageContext);
 	
@@ -55,6 +58,9 @@ public:
 	void SimulateDamageFromID(uint32 DamageID);
 	
 	uint32 GenerateDebugDamageUniqueID();
+	
+	UPROPERTY()
+	const UGASC_AbilitySystemSettings* AbilitySystemSettings = nullptr;
 	
 private:
 	

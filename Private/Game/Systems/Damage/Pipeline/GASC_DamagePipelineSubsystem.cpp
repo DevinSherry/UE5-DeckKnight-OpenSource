@@ -828,7 +828,7 @@ FGameplayEffectSpecHandle UGASC_DamagePipelineSubsystem::ConstructDamageEffectSp
 		{
 			Spec->SetDuration(EffectOverTimeContext.EffectDuration, true);
 			Spec->Period = EffectOverTimeContext.EffectPeriod;
-			Spec->DynamicGrantedTags.AddTag(Data_DamageOverTime);
+			Spec->AddDynamicAssetTag(Data_DamageOverTime);
 		}
 	}
 
@@ -940,6 +940,7 @@ bool UGASC_DamagePipelineSubsystem::ApplyDamageToTarget_Internal(
 	{
 		return false;
 	}
+	
 
 	FGameplayEffectSpec* DamageSpec = DamageSpecHandle.Data.Get();
 	if (!DamageSpec)
@@ -979,9 +980,19 @@ bool UGASC_DamagePipelineSubsystem::ApplyDamageToTarget_Internal(
 	DamageSpec->SetSetByCallerMagnitude(Data_IncomingDamage, Damage);
 
 	// Tagging
-	DamageSpec->DynamicGrantedTags.AppendTags(DamageContext.GrantedTags);
-	DamageSpec->DynamicGrantedTags.AddTag(DamageContext.DamageType);
-	DamageSpec->AddDynamicAssetTag(DamageContext.DamageType);
+	if (!DamageContext.GrantedTags.IsEmpty())
+	{
+		DamageSpec->DynamicGrantedTags.AppendTags(DamageContext.GrantedTags);
+	}
+
+	if (DamageContext.DamageType.IsValid())
+	{
+		DamageSpec->AddDynamicAssetTag(DamageContext.DamageType);
+	}
+	if (DamageContext.GrantedTags.HasTagExact(Data_DebugSimulated))
+	{
+		DamageSpec->AddDynamicAssetTag(Data_DebugSimulated);
+	}
 	
 	// 1. Get original context
 	FGameplayEffectContextHandle Original = DamageSpec->GetEffectContext();
@@ -1048,7 +1059,16 @@ bool UGASC_DamagePipelineSubsystem::ApplyHealToTarget_Internal(
 
 	if (HealContext.DamageType.IsValid())
 	{
-		HealingSpec->DynamicGrantedTags.AddTag(HealContext.DamageType);
+		HealingSpec->AddDynamicAssetTag(HealContext.DamageType);
+	}
+	
+	if (HealContext.GrantedTags.HasTagExact(Data_DebugSimulated))
+	{
+		HealingSpec->AddDynamicAssetTag(Data_DebugSimulated);
+	}
+	if (HealContext.GrantedTags.HasTagExact(Data_HealingLifeSteal))
+	{
+		HealingSpec->AddDynamicAssetTag(Data_HealingLifeSteal);
 	}
 	
 	// 1. Get original context

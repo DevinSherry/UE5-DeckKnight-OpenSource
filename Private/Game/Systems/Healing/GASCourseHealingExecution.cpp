@@ -66,12 +66,20 @@ void UGASCourseHealingExecution::Execute_Implementation(
 	// ==========================
 	
 	FGameplayEffectContextHandle ContextHandle = ExecutionParams.GetOwningSpec().GetEffectContext();
-	FGASCourseGameplayEffectContext* GASCourseContext = (FGASCourseGameplayEffectContext*)ContextHandle.Get();
+	FGASCourseGameplayEffectContext* GASCourseContext = static_cast<FGASCourseGameplayEffectContext*>(ContextHandle.Get());
+	if (!GASCourseContext)
+	{
+		return;
+	}
 	GASCourseContext->DamageLogEntry.HitInstigatorName = SourceActor->GetName();
 	GASCourseContext->DamageLogEntry.HitTargetName = TargetActor->GetName();
-	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(*SourceTags);
-	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(*TargetTags);
-	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec.DynamicGrantedTags);
+	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(Spec.CapturedSourceTags.GetActorTags());
+	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(Spec.CapturedTargetTags.GetActorTags());
+	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AddTag(DamageType_Healing);
+	if (Spec.DynamicGrantedTags.HasTagExact(Data_HealingLifeSteal))
+	{
+		GASCourseContext->DamageLogEntry.HitContextTagsContainer.AddTag(Data_HealingLifeSteal);
+	}
 	GASCourseContext->DamageLogEntry.DamageInstigatorID = SourceActor->GetUniqueID();
 	GASCourseContext->DamageLogEntry.DamageTargetID = TargetActor->GetUniqueID();
 
@@ -95,7 +103,7 @@ void UGASCourseHealingExecution::Execute_Implementation(
 	// 2. DAMAGE TYPE TAGS
 	// ==========================
 	// Instead of building a new container, use a reference to existing dynamic tags.
-	const FGameplayTagContainer& DynamicTags = Spec.DynamicGrantedTags;
+	const FGameplayTagContainer& DynamicTags = Spec.GetDynamicAssetTags();
 	
 	const bool bHasPhysical  = DynamicTags.HasTag(DamageType_Physical);
 	const bool bHasElemental = DynamicTags.HasTag(DamageType_Elemental);
@@ -158,24 +166,31 @@ void UGASCourseHealingExecution::Execute_Implementation(
 
 		TotalHealing += Healing * AllHealingCoefficient;
 	}
-
-	if (TotalHealing <= 0.f)
+	
+	bool bIsPlayerTarget = false;
+	if (APawn* PawnTarget = Cast<APawn>(TargetActor))
 	{
-		return;
+		if (AController* Controller = PawnTarget->GetController())
+		{
+			bIsPlayerTarget = Controller->IsPlayerController();
+		}
 	}
 	
-	if (TargetActor!=SourceActor)
-	{
-		TotalHealing = Healing;
-	}
+	// Always round — choose method based on source
+	TotalHealing = bIsPlayerTarget
+		? FMath::CeilToFloat(TotalHealing)
+		: FMath::FloorToFloat(TotalHealing);
 	
 	GASCourseContext->DamageLogEntry.ModifiedDamageValue = TotalHealing;
 
 	// ==========================
 	// 6. APPLY TO ATTRIBUTE
 	// ==========================
-	OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(
+	if (TotalHealing >= 1.0f)
+	{
+		OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(
 		HealingStatics().IncomingHealingProperty,
 		EGameplayModOp::Additive,
 		TotalHealing));
+	}
 }

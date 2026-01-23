@@ -2,12 +2,16 @@
 
 
 #include "Game/Systems/Debugging/Panels/GASCDamageEventsPanel.h"
+
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemComponent.h"
 #include "imgui.h"
 #include "Game/Systems/Damage/Debug/DamagePipelineDebugSubsystem.h"
 #include "GameFramework/Pawn.h"
 #include "UObject/UnrealType.h"
 
 TWeakObjectPtr<APawn> FGASCDamageEventsPanel::SelectedPawn = nullptr;
+
 EGASC_DamagePipelineType FGASCDamageEventsPanel::SelectedPipelineType = Healing;
 TMap<uint32, bool> FGASCDamageEventsPanel::DrawHitResultStates;
 TMap<uint32, ImVec4> FGASCDamageEventsPanel::DrawHitResultColors;
@@ -17,8 +21,12 @@ int FGASCDamageEventsPanel::DamageModContextFilter = 0;
 int FGASCDamageEventsPanel::DamageModEventType = 0;
 int FGASCDamageEventsPanel::DamageType = 0;
 
+bool FGASCDamageEventsPanel::bImmuneDamageAll = false;
+bool FGASCDamageEventsPanel::bImmuneDamageFire = false;
+
 FGASCDamageEventsPanel::FGASCDamageEventsPanel()
 {
+	AbilitySystemSettings = GetDefault<UGASC_AbilitySystemSettings>();
 }
 
 FGASCDamageEventsPanel::~FGASCDamageEventsPanel()
@@ -43,7 +51,7 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
     auto OptionsTableIdANSI = StringCast<ANSICHAR>(*OptionsTableId);
 
     ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(4.0f, 8.0f));
-    if (ImGui::BeginTable(OptionsTableIdANSI.Get(), 4,
+    if (ImGui::BeginTable(OptionsTableIdANSI.Get(), 5,
         ImGuiTableFlags_SizingFixedFit |
         ImGuiTableFlags_Resizable |
         ImGuiTableFlags_BordersV |
@@ -57,6 +65,7 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
         ImGui::TableSetupColumn("Damage Modification Type");
         ImGui::TableSetupColumn("Event Type");
         ImGui::TableSetupColumn("Filters");
+    	ImGui::TableSetupColumn("Damage Immunities");
         ImGui::TableHeadersRow();
 
         // -------- Pawn Selection --------
@@ -127,14 +136,59 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
             ImGui::Combo("Damage Type Filter", &DamageType, "All\0Healing\0Physical\0Fire");
         }
     	
-    	ImGui::Combo("Damage Context Filter", &DamageModContextFilter, "All\0CriticalOnly\0DamageOverTimeOnly\0ResistedDamageOnly");
+    	ImGui::Combo("Damage Context Filter", &DamageModContextFilter, "All\0CriticalOnly\0DamageOverTimeOnly\0ResistedDamageOnly\0LifeStealOnly");
         ImGui::Checkbox("Filter Simulated Damage", &bFilterOutSimulated);
+    	
+    	ImGui::TableNextColumn();
+    	if (SelectedPawn.IsValid())
+    	{
+    		if (ImGui::BeginCombo("Damage Immunity", "Select Damage Immunities"))
+    		{
+    			if (UAbilitySystemComponent* AbilitySystemComponent = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(SelectedPawn.Get()))
+    			{
+    				if (!AbilitySystemSettings)
+    				{
+    					AbilitySystemSettings = GetDefault<UGASC_AbilitySystemSettings>();
+    				}
+    				if (ImGui::Checkbox("All Damage Immunities", &bImmuneDamageAll))
+    				{
+    					if (bImmuneDamageAll)
+    					{
+    						FGameplayEffectContextHandle ContextHandle;
+    						ContextHandle.AddInstigator(SelectedPawn.Get(), SelectedPawn.Get());
+    						FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(AbilitySystemSettings->AllDamageImmunityEffect, 1.0f, ContextHandle);
+    						AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+    					}
+    					else
+    					{
+    						AbilitySystemComponent->RemoveActiveGameplayEffectBySourceEffect(AbilitySystemSettings->AllDamageImmunityEffect, AbilitySystemComponent);
+    					}
+    				}
+    				if (ImGui::Checkbox("Fire Damage Immunity", &bImmuneDamageFire))
+    				{
+    					if (bImmuneDamageFire)
+    					{
+    						FGameplayEffectContextHandle ContextHandle;
+    						ContextHandle.AddInstigator(SelectedPawn.Get(), SelectedPawn.Get());
+    						FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(AbilitySystemSettings->FireDamageImmunityEffect, 1.0f, ContextHandle);
+    						AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+    					}
+    					else
+    					{
+    						AbilitySystemComponent->RemoveActiveGameplayEffectBySourceEffect(AbilitySystemSettings->FireDamageImmunityEffect, AbilitySystemComponent);
+    					}
+    				}
+    			}
+    			
+    			ImGui::EndCombo();
+    		}
+    	}
+    	
         ImGui::EndTable();
     }
-
+	
     ImGui::PopStyleVar(); // <-- BALANCED POP for OPTIONS TABLE
-
-
+	
     if (!SelectedPawn.IsValid())
     {
         ImGui::End();
@@ -191,7 +245,7 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
             
             if (DamageModEventType == 1 && SelectedPawn != Target) continue;
             if (DamageModEventType == 2 && SelectedPawn != Inst) continue;
-            if (Entry.HitContextTagsContainer.HasTagExact(DamageType_DebugSimulated) && bFilterOutSimulated) continue;
+            if (Entry.HitContextTagsContainer.HasTagExact(Data_DebugSimulated) && bFilterOutSimulated) continue;
         	if (Entry.HitContextTagsContainer.HasTagExact(DamageType_Physical) && !(DamageType == 0 || DamageType == 2)) continue;
         	if (Entry.HitContextTagsContainer.HasTagExact(DamageType_Healing) && !(DamageType==0 || DamageType==1)) continue;
         	if (Entry.HitContextTagsContainer.HasTagExact(DamageType_Elemental_Fire) && !(DamageType==0 || DamageType==3)) continue;
@@ -208,6 +262,9 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
         		case 3:
         			if (!Entry.bDamageResisted) continue;
         			break;
+        		case 4:
+        			//if (!Entry.bLifeSteal && !Entry.bIsDamageEffect) continue;
+        			break;
         	default:
         		break;
         	}
@@ -220,7 +277,7 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
             ImGui::PushTextWrapPos(colEnd);
 
             ImGui::Text("%s: Instigator: %s", TCHAR_TO_ANSI(*Cat), TCHAR_TO_ANSI(*Entry.HitInstigatorName));
-            ImGui::Text("%s: Tags:", TCHAR_TO_ANSI(*Cat));
+            ImGui::Text("Instigator Gameplay Tags:");
 
             if (Entry.HitInstigatorTagsContainer.IsEmpty())
             {
@@ -242,7 +299,7 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
             ImGui::PushTextWrapPos(colEnd);
 
             ImGui::Text("%s: Target: %s", TCHAR_TO_ANSI(*Cat), TCHAR_TO_ANSI(*Entry.HitTargetName));
-            ImGui::Text("%s: Tags:", TCHAR_TO_ANSI(*Cat));
+            ImGui::Text("Target Gameplay Tags:");
 
             if (Entry.HitTargetTagsContainer.IsEmpty())
             {
@@ -283,10 +340,12 @@ void FGASCDamageEventsPanel::DrawDebugPanel(bool& bOpen)
             bool dummyCrit = Entry.bIsCriticalHit;
             bool dummyOT = Entry.bIsOverTimeEffect;
         	bool dummyResisted = Entry.bDamageResisted;
+        	bool dummyLifeSteal = Entry.bLifeSteal;
         	ImGui::PushID(Entry.DamageID);
             ImGui::Checkbox("Critical", &dummyCrit);
             ImGui::Checkbox("Over Time", &dummyOT);
         	ImGui::Checkbox("Resisted", &dummyResisted);
+        	ImGui::Checkbox("Life Steal", &dummyLifeSteal);
         	ImGui::PopID();
             ImGui::EndDisabled();
 

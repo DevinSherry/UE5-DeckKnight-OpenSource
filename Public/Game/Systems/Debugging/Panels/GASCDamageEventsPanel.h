@@ -4,6 +4,7 @@
 
 #include <imgui.h>
 
+#include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
 
@@ -23,9 +24,11 @@ public:
 	FGASCDamageEventsPanel();
 	~FGASCDamageEventsPanel();
 	
-	virtual const char* GetDebugPanelName() const override {return "Damage Events Pipeline System";}
+	virtual const char* GetDebugPanelName() const override {return "Damage Pipeline System";}
 	virtual void DrawDebugPanel(bool& bOpen) override;
 	virtual void UpdateCachedPawns(TArray<TWeakObjectPtr<APawn>> Pawns) override;
+	
+	const UGASC_AbilitySystemSettings* AbilitySystemSettings = nullptr;
 	
 private:
 	static TWeakObjectPtr<APawn> SelectedPawn;
@@ -40,5 +43,8 @@ private:
 	static int DamageModEventType;
 	static int DamageType;
 	static int DamageModContextFilter;
+	
+	static bool bImmuneDamageAll;
+	static bool bImmuneDamageFire;
 	
 };

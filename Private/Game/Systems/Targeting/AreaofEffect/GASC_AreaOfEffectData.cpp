@@ -44,6 +44,16 @@ EDataValidationResult UGASC_AreaOfEffectData::IsDataValid(class FDataValidationC
 		Result = EDataValidationResult::Invalid;
 		Context.AddError(FText::FromString("Targeting Preset is not set"));
 	}
+	if (AreaOfEffectMaxValue.GetValueAtLevel(AreaOfEffectMaxValue.Value) < AreaOfEffectMinValue.GetValueAtLevel(AreaOfEffectMinValue.Value))
+	{
+		Result = EDataValidationResult::Invalid;
+		Context.AddError(FText::FromString("Max Area of Effect must be greater than or equal Min Area of Effect"));
+	}
+	if (AreaOfEffectMinValue.GetValueAtLevel(AreaOfEffectMinValue.Value) > AreaOfEffectMaxValue.GetValueAtLevel(AreaOfEffectMaxValue.Value))
+	{
+		Result = EDataValidationResult::Invalid;
+		Context.AddError(FText::FromString("Min Area of Effect must be less than or equal Max Area of Effect"));
+	}
 
 	return Result;
 }

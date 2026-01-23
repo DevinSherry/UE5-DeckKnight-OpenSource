@@ -24,11 +24,11 @@ Super(ObjectInitializer)
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
+	//CameraBoom->TargetArmLength = 400.0f; // The camera follows at this distance behind the character	
 	CameraBoom->bUsePawnControlRotation = false; // Rotate the arm based on the controller
-	CameraBoom->bInheritPitch = false;
-	CameraBoom->bInheritRoll = false;
-	CameraBoom->bInheritYaw = false;
+	//CameraBoom->bInheritPitch = false;
+	//CameraBoom->bInheritRoll = false;
+	//CameraBoom->bInheritYaw = false;
 	CameraBoom->bDoCollisionTest = false;
 
 	// Create a follow camera
@@ -51,8 +51,8 @@ void AGASCoursePlayerCharacter::InitializeCamera()
 {
 	if (CameraSettingsData)
 	{
-		GetCameraBoom()->TargetArmLength = CameraSettingsData->DefaultCameraBoomLength;
-		GetCameraBoom()->SocketOffset = FVector(0.0f,0.0f, CameraSettingsData->DefaultSocketOffsetZ);
+		//GetCameraBoom()->TargetArmLength = CameraSettingsData->DefaultCameraBoomLength;
+		//GetCameraBoom()->SocketOffset = FVector(0.0f,0.0f, CameraSettingsData->DefaultSocketOffsetZ);
 	}
 }
 
@@ -263,6 +263,7 @@ void AGASCoursePlayerCharacter::Move(const FInputActionValue& Value)
 				GASCourseASC->SetLooseGameplayTagCount(Status_IsMoving, 1);
 				// find out which way is forward
 				const FRotator Rotation = Controller->GetControlRotation();
+
 				const FRotator YawRotation(0, Rotation.Yaw, 0);
 
 				// get forward vector

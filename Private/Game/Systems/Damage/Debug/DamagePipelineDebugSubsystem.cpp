@@ -6,6 +6,12 @@
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "GASCourse/GASCourseCharacter.h"
 
+void UDamagePipelineDebugSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	AbilitySystemSettings = GetDefault<UGASC_AbilitySystemSettings>();
+}
+
 void UDamagePipelineDebugSubsystem::LogDamageEvent(const FDamageLogEntry& DamageContext)
 {
 	//DamageLogEntries.Add(DamageContext);
@@ -76,8 +82,7 @@ void UDamagePipelineDebugSubsystem::SimulateDamageFromID(uint32 DamageID)
 			}
 		}
 		DamagePipelineContext.GrantedTags = DamageLogEntry.HitContextTagsContainer;
-		//DamagePipelineContext.GrantedTags.AddTagFast(DamageType_DebugSimulated);
-		DamagePipelineContext.GrantedTags.AddTag(DamageType_DebugSimulated);
+		DamagePipelineContext.GrantedTags.AddTagFast(Data_DebugSimulated);
 		
 		if (UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
 		{
@@ -116,6 +121,12 @@ uint32 UDamagePipelineDebugSubsystem::GenerateDebugDamageUniqueID()
 
 void UDamagePipelineDebugSubsystem::TempApplyAttributeModToInstigator(FDamageLogEntry DamageLogEntry, AActor* InInstigator)
 {
+	TArray<FGameplayAttribute> IgnoredSimulatedAttributes;
+	if (AbilitySystemSettings)
+	{
+		IgnoredSimulatedAttributes = AbilitySystemSettings->SimulatedDamageIgnoreAttributes;
+	}
+	
 	if (AGASCourseCharacter* InstigatorPawn = Cast<AGASCourseCharacter>(InInstigator))
 	{
 		if (UAbilitySystemComponent* InstigatorASC = InstigatorPawn->GetAbilitySystemComponent())
@@ -130,7 +141,7 @@ void UDamagePipelineDebugSubsystem::TempApplyAttributeModToInstigator(FDamageLog
 			
 			for (const FGameplayAttribute& Attribute : AllAttributes)
 			{
-				if (AttributeNames.Contains(Attribute.AttributeName) && !Attribute.AttributeName.Contains("DamageMultiplier"))
+				if (AttributeNames.Contains(Attribute.AttributeName) && !IgnoredSimulatedAttributes.Contains(Attribute))
 				{
 					float Original = InstigatorASC->GetNumericAttribute(Attribute);
 					float NewValue = DamageLogEntry.Attributes.FindChecked(Attribute.GetName());

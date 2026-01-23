@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerState.h"
 #include "imgui.h"
 #include "Game/GameplayAbilitySystem/AttributeSets/GASC_CardResourcesAttributeSet.h"
+#include "Game/Systems/Debugging/GASC_AttributeDebugEffect.h"
 
 TWeakObjectPtr<APawn> FGASCAttributesPanel::SelectedPawn = nullptr;
 TWeakObjectPtr<UAbilitySystemComponent> FGASCAttributesPanel::SelectedASC = nullptr;
@@ -149,7 +150,8 @@ void FGASCAttributesPanel::DrawDebugPanel(bool& bOpen)
                     ImGui::TableNextColumn();
                     if (SelectedASC.IsValid() && ImGui::InputFloat("", &CurrentValue))
                     {
-                        SelectedASC->SetNumericAttributeBase(Attribute, CurrentValue);
+                        //SelectedASC->SetNumericAttributeBase(Attribute, CurrentValue);
+                    	ApplyAttributeModification(Attribute, CurrentValue);
                     }
 
                     ImGui::PopID();
@@ -270,6 +272,23 @@ void FGASCAttributesPanel::DrawDebugPanel(bool& bOpen)
 void FGASCAttributesPanel::UpdateCachedPawns(TArray<TWeakObjectPtr<APawn>> Pawns)
 {
 	CachedPawns = Pawns;
+}
+
+void FGASCAttributesPanel::ApplyAttributeModification(const FGameplayAttribute& InAttribute, float NewValue)
+{
+	if (SelectedASC.IsValid() && SelectedPawn.IsValid())
+	{
+		UGASC_AttributeDebugEffect* GEMod = NewObject<UGASC_AttributeDebugEffect>(GetTransientPackage(), FName(TEXT("AttributeMod")));
+		GEMod->DurationPolicy = EGameplayEffectDurationType::Instant;
+		GEMod->Modifiers.SetNum(1);
+		
+		FGameplayModifierInfo& Mod = GEMod->Modifiers[0];
+		Mod.Attribute = InAttribute;
+		Mod.ModifierOp = EGameplayModOp::Override;
+		Mod.ModifierMagnitude = FGameplayEffectModifierMagnitude(NewValue);
+		
+		SelectedASC.Get()->ApplyGameplayEffectToSelf(GEMod, 1.0f, SelectedASC.Get()->MakeEffectContext());
+	}
 }
 
 void FGASCAttributesPanel::InitializeAbilitySystemComponent(UAbilitySystemComponent* ASC)

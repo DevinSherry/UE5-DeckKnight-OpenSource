@@ -21,7 +21,7 @@ UGASCourseHealthAttributeSet::UGASCourseHealthAttributeSet()
 void UGASCourseHealthAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
 	Super::PreAttributeChange(Attribute, NewValue);
-
+	
 	if(Attribute == GetMaxHealthAttribute())
 	{
 		AdjustAttributeForMaxChange(CurrentHealth, MaxHealth, NewValue, GetCurrentHealthAttribute());
@@ -82,7 +82,6 @@ void UGASCourseHealthAttributeSet::PostAttributeChange(const FGameplayAttribute&
                                                        float NewValue)
 {
 	Super::PostAttributeChange(Attribute, OldValue, NewValue);
-	
 }
 
 void UGASCourseHealthAttributeSet::PostAttributeBaseChange(const FGameplayAttribute& Attribute, float OldValue,
@@ -98,7 +97,8 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	const FGameplayEffectSpec& Spec                     = Data.EffectSpec;
 	const FGameplayEffectContextHandle& ContextHandle   = Spec.GetContext();
 	const FGameplayTagContainer& DynamicTags            = Spec.DynamicGrantedTags;
-
+	const FGameplayTagContainer& AssetTags              = Spec.GetDynamicAssetTags();
+	
 	// ---------------------------------------------------------------------
 	// Resolve target info once
 	// ---------------------------------------------------------------------
@@ -144,12 +144,13 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	// ---------------------------------------------------------------------
 	// Precompute commonly used tag info
 	// ---------------------------------------------------------------------
-	const bool bIsCritical         = DynamicTags.HasTagExact(DamageType_Critical);
-	const bool bIsDamageOverTime   = DynamicTags.HasTagExact(Data_DamageOverTime);
-	const bool bDamageResisted     = DynamicTags.HasTagExact(DamageType_Resistance);
+	const bool bIsCritical         = AssetTags.HasTagExact(Data_DamageCritical);
+	const bool bIsDamageOverTime   = AssetTags.HasTagExact(Data_DamageOverTime);
+	const bool bDamageResisted     = AssetTags.HasTagExact(Data_DamageResisted);
+	const bool bLifeSteal          = AssetTags.HasTagExact(Data_HealingLifeSteal);
 
 	FGameplayTag DamageTypeTag;
-	for (const FGameplayTag& Tag : DynamicTags)
+	for (const FGameplayTag& Tag : AssetTags)
 	{
 		if (Tag.MatchesTag(DamageType_Root))
 		{
@@ -201,6 +202,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 		MutableContext->DamageLogEntry.bIsDamageEffect = true;
 		MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
 		MutableContext->DamageLogEntry.bDamageResisted = bDamageResisted;
+		MutableContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec.GetDynamicAssetTags());
 			
 		if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
 		{
@@ -232,7 +234,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 			}
 			HitCtx.HitTimeStamp            = World->GetTimeSeconds();
 			HitCtx.OptionalSourceObject    = Cast<AActor>(ContextHandle.GetSourceObject());
-			HitCtx.HitContextTagsContainer = &DynamicTags;
+			HitCtx.HitContextTagsContainer = &AssetTags;
 
 			ModContext.HitContext = HitCtx;
 
@@ -278,7 +280,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 	}
 
 	// =====================================================================
-	// PASSIVE HEALING BRANCH
+	// HEALING BRANCH
 	// =====================================================================
 	if (Data.EvaluatedData.Attribute == GetIncomingHealingAttribute())
 	{
@@ -310,6 +312,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 			MutableContext->DamageLogEntry.bIsCriticalHit = bIsCritical;
 			MutableContext->DamageLogEntry.bIsDamageEffect = false;
 			MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
+			MutableContext->DamageLogEntry.bLifeSteal = bLifeSteal;
 			
 			if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
 			{
@@ -326,7 +329,8 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 				ModContext.DamagePipelineType        = Healing;
 				ModContext.DeltaValue                = TrueHealthDelta;
 				ModContext.NewValue                  = NewHealth;
-				ModContext.DamageType                = DamageTypeTag;
+				ModContext.DamageType              = DamageType_Healing;
+				ModContext.bLifeSteal                = bLifeSteal;
 
 				FHitContext HitCtx;
 				HitCtx.HitTarget      = TargetActor;
@@ -339,7 +343,7 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 				}
 				HitCtx.HitTimeStamp            = World->GetTimeSeconds();
 				HitCtx.OptionalSourceObject    = Cast<AActor>(ContextHandle.GetSourceObject());
-				HitCtx.HitContextTagsContainer = &DynamicTags;
+				HitCtx.HitContextTagsContainer = &AssetTags;
 
 				ModContext.HitContext = HitCtx;
 

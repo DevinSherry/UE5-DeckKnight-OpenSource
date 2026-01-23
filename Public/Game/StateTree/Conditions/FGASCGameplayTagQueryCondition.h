@@ -16,7 +16,7 @@ struct FGASCGameplayTagQueryConditionInstanceData
 	
 	/** Actor to use owning tags as part of the query match condition. */
 	UPROPERTY(EditAnywhere, Category = Condition, meta=(EditCondition = "!bUseAlternateTagContainer", EditConditionHides))
-	AActor* ActorToCheck;
+	AActor* ActorToCheck = nullptr;
 	
 	/** Query to match against */
 	UPROPERTY(EditAnywhere, Category = Condition)

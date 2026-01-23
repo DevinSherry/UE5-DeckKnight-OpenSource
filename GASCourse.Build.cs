@@ -29,7 +29,8 @@ public class GASCourse : ModuleRules
 			"MassCommon",
 			"MassMovement",
 			"MassSpawner",
-			"MassRepresentation"
+			"MassRepresentation",
+			"GameplayMessageRuntime"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]

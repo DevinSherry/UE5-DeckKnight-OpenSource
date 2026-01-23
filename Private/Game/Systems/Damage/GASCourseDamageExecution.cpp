@@ -10,6 +10,7 @@
 #include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "Game/Systems/Healing/GASCourseHealingExecution.h"
+#include "UObject/ICookInfo.h"
 
 struct GASCourseDamageStatics
 {
@@ -44,172 +45,239 @@ UGASCourseDamageExecution::UGASCourseDamageExecution()
 	RelevantAttributesToCapture.Add(DamageStatics().DamageResistanceMultiplierDef);
 }
 
-void UGASCourseDamageExecution::Execute_Implementation(const FGameplayEffectCustomExecutionParameters& ExecutionParams,
+void UGASCourseDamageExecution::Execute_Implementation(
+	const FGameplayEffectCustomExecutionParameters& ExecutionParams,
 	FGameplayEffectCustomExecutionOutput& OutExecutionOutput) const
 {
-	UGASCourseAbilitySystemComponent* TargetAbilitySystemComponent = Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetTargetAbilitySystemComponent());
-	UGASCourseAbilitySystemComponent* SourceAbilitySystemComponent = Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetSourceAbilitySystemComponent());
+	UGASCourseAbilitySystemComponent* TargetAbilitySystemComponent =
+		Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetTargetAbilitySystemComponent());
+	UGASCourseAbilitySystemComponent* SourceAbilitySystemComponent =
+		Cast<UGASCourseAbilitySystemComponent>(ExecutionParams.GetSourceAbilitySystemComponent());
 
 	AActor* SourceActor = SourceAbilitySystemComponent ? SourceAbilitySystemComponent->GetAvatarActor() : nullptr;
 	AActor* TargetActor = TargetAbilitySystemComponent ? TargetAbilitySystemComponent->GetAvatarActor() : nullptr;
 
 	FGameplayEffectSpec* Spec = ExecutionParams.GetOwningSpecForPreExecuteMod();
-	
-	// Gather the tags from the source and target as that can affect which buffs should be used
+
+	if (!SourceActor || !TargetActor || !Spec)
+	{
+		return;
+	}
+
+	if (TargetAbilitySystemComponent->HasMatchingGameplayTag(Status_Death))
+	{
+		return;
+	}
+
+	// Gather tags
 	const FGameplayTagContainer* SourceTags = Spec->CapturedSourceTags.GetAggregatedTags();
 	const FGameplayTagContainer* TargetTags = Spec->CapturedTargetTags.GetAggregatedTags();
 
 	FAggregatorEvaluateParameters EvaluationParameters;
 	EvaluationParameters.SourceTags = SourceTags;
 	EvaluationParameters.TargetTags = TargetTags;
-	
+
 	// ==========================
-	// 0. Instantiate Debug log entry
+	// 0. Context & logging
 	// ==========================
-	
-	FGameplayEffectContextHandle ContextHandle = ExecutionParams.GetOwningSpec().GetEffectContext();
-	FGASCourseGameplayEffectContext* GASCourseContext = (FGASCourseGameplayEffectContext*)ContextHandle.Get();
+
+	FGameplayEffectContextHandle ContextHandle = Spec->GetEffectContext();
+	FGameplayEffectContext* BaseCtx = ContextHandle.Get();
+	if (!BaseCtx)
+	{
+		return;
+	}
+
+	auto* GASCourseContext = static_cast<FGASCourseGameplayEffectContext*>(BaseCtx);
+
 	GASCourseContext->DamageLogEntry.HitInstigatorName = SourceActor->GetName();
 	GASCourseContext->DamageLogEntry.HitTargetName = TargetActor->GetName();
-	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(*SourceTags);
-	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(*TargetTags);
-	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec->DynamicGrantedTags);
+	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(Spec->CapturedSourceTags.GetActorTags());
+	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(Spec->CapturedTargetTags.GetActorTags());
+	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec->GetDynamicAssetTags());
 	GASCourseContext->DamageLogEntry.DamageInstigatorID = SourceActor->GetUniqueID();
 	GASCourseContext->DamageLogEntry.DamageTargetID = TargetActor->GetUniqueID();
 
-	bool bUsingCachedDamage = false;
-	bool bCriticalHit = false;
+	// ==========================
+	// 1. Base damage
+	// ==========================
+
 	float BaseDamage = 0.0f;
-	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().IncomingDamageDef, EvaluationParameters, BaseDamage);
-	// Add SetByCaller damage if it exists
-	BaseDamage += FMath::Max<float>(Spec->GetSetByCallerMagnitude(Data_IncomingDamage, false, -1.0f), 0.0f);
+	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+		DamageStatics().IncomingDamageDef, EvaluationParameters, BaseDamage);
+
+	BaseDamage += FMath::Max(
+		Spec->GetSetByCallerMagnitude(Data_IncomingDamage, false, -1.0f),
+		0.0f);
+
 	float ModifiedDamage = BaseDamage;
-	
 	GASCourseContext->DamageLogEntry.BaseDamageValue = BaseDamage;
 
-	if (Spec->DynamicGrantedTags.HasTagExact(Data_DamageOverTime))
+	// ==========================
+	// 2. Snapshot DoT handling
+	// ==========================
+
+	const bool bIsDoT = Spec->GetDynamicAssetTags().HasTagExact(Data_DamageOverTime);
+	bool bSkipDamageRecalculation = false;
+
+	if (bIsDoT)
 	{
-		float CachedDamage = 0.0f;
-		if (Spec->SetByCallerTagMagnitudes.Find(Data_CachedDamage))
-		{
-			CachedDamage = Spec->GetSetByCallerMagnitude(Data_CachedDamage);
-		}
-		if (CachedDamage > 0.0f)
+		const float CachedDamage =
+			Spec->GetSetByCallerMagnitude(Data_CachedDamage, false, 0.f);
+
+		if (CachedDamage > 0.f)
 		{
 			ModifiedDamage = CachedDamage;
-			// Set the Target's damage meta attribute
-			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, ModifiedDamage));
-			bUsingCachedDamage = true;
+
+			OutExecutionOutput.AddOutputModifier(
+				FGameplayModifierEvaluatedData(
+					DamageStatics().IncomingDamageProperty,
+					EGameplayModOp::Additive,
+					ModifiedDamage));
+
+			bSkipDamageRecalculation = true;
 		}
 	}
 
-	if (!bUsingCachedDamage)
+	// ==========================
+	// 3. Crit / multipliers / resistance (first application only)
+	// ==========================
+
+	if (!bSkipDamageRecalculation)
 	{
-		/*
-		* Critical Chance + Critical Damage
-		*/
 		float CriticalChance = 0.0f;
-		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().CriticalChanceDef, EvaluationParameters, CriticalChance);
-	
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+			DamageStatics().CriticalChanceDef, EvaluationParameters, CriticalChance);
+		CriticalChance = FMath::Clamp(CriticalChance, 0.f, 1.f);
+
 		float CriticalDamageMultiplier = 0.0f;
-		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(DamageStatics().CriticalDamageMultiplierDef, EvaluationParameters, CriticalDamageMultiplier);
-	
-		const float Roll = FMath::FRand();   // 0..1
-		bCriticalHit = (Roll <= CriticalChance);
-		if (bCriticalHit)
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+			DamageStatics().CriticalDamageMultiplierDef, EvaluationParameters, CriticalDamageMultiplier);
+
+		if (FMath::FRand() <= CriticalChance)
 		{
-			ModifiedDamage += FMath::Floor(ModifiedDamage * CriticalDamageMultiplier);
-			GASCourseContext->DamageLogEntry.Attributes.Add(GASCourseDamageStatics().CriticalChanceProperty->GetName(), 
-			CriticalChance);
-			GASCourseContext->DamageLogEntry.Attributes.Add(GASCourseDamageStatics().CriticalDamageMultiplierProperty->GetName(), 
-			CriticalDamageMultiplier);
-			Spec->DynamicGrantedTags.AddTag(DamageType_Critical);
-		}
-		
-		//Grab any damage resistances from the target.
-		float DamageResistance = 0.0f;
-		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(GASCourseDamageStatics().DamageResistanceMultiplierDef, EvaluationParameters, DamageResistance);
-		
-		float DamageMultiplier = 0.0f;
-		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(GASCourseDamageStatics().DamageMultiplierDef, EvaluationParameters, DamageMultiplier);
-		if (DamageMultiplier > 0.0f)
-		{
-			ModifiedDamage += (ModifiedDamage * DamageMultiplier);
-			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().DamageMultiplierProperty->GetName(), 
-			DamageMultiplier);
+			ModifiedDamage *= (1.f + CriticalDamageMultiplier);
+			Spec->AddDynamicAssetTag(Data_DamageCritical);
+
+			GASCourseContext->DamageLogEntry.Attributes.Add(
+				GASCourseDamageStatics().CriticalChanceProperty->GetName(), CriticalChance);
+			GASCourseContext->DamageLogEntry.Attributes.Add(
+				GASCourseDamageStatics().CriticalDamageMultiplierProperty->GetName(), CriticalDamageMultiplier);
 		}
 
-		if (DamageResistance > 0.0f)
+		float DamageMultiplier = 0.0f;
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+			GASCourseDamageStatics().DamageMultiplierDef, EvaluationParameters, DamageMultiplier);
+
+		if (DamageMultiplier > 0.f)
 		{
-			GASCourseContext->DamageLogEntry.Attributes.Add(DamageStatics().DamageResistanceMultiplierProperty->GetName(), 
-			DamageResistance);
-			ModifiedDamage *= (1.0f - DamageResistance);
-			Spec->DynamicGrantedTags.AddTag(DamageType_Resistance);
-			OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, ModifiedDamage));
+			ModifiedDamage += (ModifiedDamage * DamageMultiplier);
+			GASCourseContext->DamageLogEntry.Attributes.Add(
+				DamageStatics().DamageMultiplierProperty->GetName(), DamageMultiplier);
 		}
-		else
+
+		float DamageResistance = 0.0f;
+		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+			GASCourseDamageStatics().DamageResistanceMultiplierDef, EvaluationParameters, DamageResistance);
+		DamageResistance = FMath::Clamp(DamageResistance, 0.f, 1.f);
+
+		if (DamageResistance > 0.f)
+		{
+			ModifiedDamage *= (1.f - DamageResistance);
+			Spec->AddDynamicAssetTag(Data_DamageResisted);
+			GASCourseContext->DamageLogEntry.Attributes.Add(
+				DamageStatics().DamageResistanceMultiplierProperty->GetName(), DamageResistance);
+		}
+
+		ModifiedDamage = FMath::Max(ModifiedDamage, 0.f);
+
+		bool bIsPlayerSource = false;
+		if (APawn* PawnSource = Cast<APawn>(SourceActor))
+		{
+			if (AController* Controller = PawnSource->GetController())
+			{
+				bIsPlayerSource = Controller->IsPlayerController();
+			}
+		}
+
+		// Always round — choose method based on source
+		ModifiedDamage = bIsPlayerSource
+			? FMath::CeilToFloat(ModifiedDamage)
+			: FMath::FloorToFloat(ModifiedDamage);
+
+		if (ModifiedDamage > 0.f)
+		{
+			OutExecutionOutput.AddOutputModifier(
+				FGameplayModifierEvaluatedData(
+					DamageStatics().IncomingDamageProperty,
+					EGameplayModOp::Additive,
+					ModifiedDamage));
+		}
+
+		// Cache snapshot damage for DoT ticks
+		Spec->SetSetByCallerMagnitude(Data_CachedDamage, ModifiedDamage);
+
+		GASCourseContext->DamageLogEntry.ModifiedDamageValue =
+			ModifiedDamage - BaseDamage;
+	}
+
+	// ==========================
+	// 4. Lifesteal
+	// ==========================
+
+	if (UWorld* World = SourceActor->GetWorld())
+	{
+		if (UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem =
+			World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
 		{
 			if (ModifiedDamage > 0.f)
 			{
-				// Set the Target's damage meta attribute
-				OutExecutionOutput.AddOutputModifier(FGameplayModifierEvaluatedData(DamageStatics().IncomingDamageProperty, EGameplayModOp::Additive, ModifiedDamage));
+				World->GetTimerManager().SetTimerForNextTick(
+					FTimerDelegate::CreateLambda(
+						[this, DamagePipelineSubsystem, SourceActor, ModifiedDamage]()
+						{
+							FDamagePipelineContext HealContext;
+							HealContext.GrantedTags.AddTag(Data_HealingLifeSteal);
+							DamagePipelineSubsystem->ApplyHealToTarget(
+								SourceActor, SourceActor, ModifiedDamage, HealContext);
+						}));
 			}
 		}
-		
-
-		//Store damage as cached damage
-		Spec->SetSetByCallerMagnitude(Data_CachedDamage, ModifiedDamage);
-		
-		GASCourseContext->DamageLogEntry.ModifiedDamageValue = BaseDamage >= ModifiedDamage ?  BaseDamage - ModifiedDamage : ModifiedDamage - BaseDamage;
 	}
-	
-	if (UWorld* World = SourceActor->GetWorld())
+
+	// ==========================
+	// 5. Gameplay events & status
+	// ==========================
+
+	FGameplayEventData DamageEvent;
+	DamageEvent.Instigator = SourceActor;
+	DamageEvent.Target = TargetActor;
+	DamageEvent.EventMagnitude = ModifiedDamage;
+	DamageEvent.ContextHandle = Spec->GetContext();
+	DamageEvent.InstigatorTags = Spec->DynamicGrantedTags;
+
+	if (const FHitResult* HR = Spec->GetContext().GetHitResult())
 	{
-		if (UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
-		{
-			//TODO Add damage log entry for lifesteal labeling
-			World->GetTimerManager().SetTimerForNextTick(
-			FTimerDelegate::CreateLambda([this, DamagePipelineSubsystem, SourceActor, ModifiedDamage]()
-			{
-					FDamagePipelineContext HealContext;
-					DamagePipelineSubsystem->ApplyHealToTarget(SourceActor, SourceActor, ModifiedDamage, HealContext);
-			}));
-		}
+		DamageEvent.TargetData =
+			UAbilitySystemBlueprintLibrary::AbilityTargetDataFromHitResult(*HR);
 	}
-	
-	/*
-	 *This is where we will add more damage log information for resistances and armor calculations
-	 */
 
-	// Broadcast damages to Target ASC & SourceASC
-	if (TargetAbilitySystemComponent && SourceAbilitySystemComponent)
+	if (Spec->GetDynamicAssetTags().HasTagExact(Data_DamageCritical))
 	{
-		FGameplayEventData DamageDealtPayload;
-		DamageDealtPayload.Instigator = SourceAbilitySystemComponent->GetAvatarActor();
-		DamageDealtPayload.Target = TargetAbilitySystemComponent->GetAvatarActor();
-		DamageDealtPayload.EventMagnitude = ModifiedDamage;
-		DamageDealtPayload.ContextHandle = Spec->GetContext();
-		DamageDealtPayload.InstigatorTags = Spec->DynamicGrantedTags;
-		if (const FHitResult* HR = Spec->GetContext().GetHitResult())
-		{
-			DamageDealtPayload.TargetData = UAbilitySystemBlueprintLibrary::AbilityTargetDataFromHitResult(*HR);
-		}
-
-		if (bCriticalHit)
-		{
-			DamageDealtPayload.InstigatorTags.AddTag(DamageType_Critical);
-		}
-		
-		if(TargetAbilitySystemComponent->HasMatchingGameplayTag(Status_Death))
-		{
-			return;
-		}
-		
-		SourceAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnDamageDealt, &DamageDealtPayload);
-		TargetAbilitySystemComponent->HandleGameplayEvent(Event_Gameplay_OnDamageDealt, &DamageDealtPayload);
-
-		//TODO: Instead of sending event, pass in status effect tag into gameplay status table
-		TargetAbilitySystemComponent->ApplyGameplayStatusEffect(TargetAbilitySystemComponent, SourceAbilitySystemComponent, Spec->DynamicGrantedTags);
+		DamageEvent.InstigatorTags.AddTag(Data_DamageCritical);
 	}
+
+	SourceAbilitySystemComponent->HandleGameplayEvent(
+		Event_Gameplay_OnDamageDealt, &DamageEvent);
+
+	TargetAbilitySystemComponent->HandleGameplayEvent(
+		Event_Gameplay_OnDamageReceived, &DamageEvent);
+
+	TargetAbilitySystemComponent->ApplyGameplayStatusEffect(
+		TargetAbilitySystemComponent,
+		SourceAbilitySystemComponent,
+		Spec->DynamicGrantedTags);
 }
+
+
  

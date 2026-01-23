@@ -39,6 +39,8 @@ public:
 	virtual const char* GetDebugPanelName() const override {return "Gameplay Attributes";}
 	virtual void DrawDebugPanel(bool& bOpen) override;
 	virtual void UpdateCachedPawns(TArray<TWeakObjectPtr<APawn>> Pawns) override;
+	
+	void ApplyAttributeModification(const FGameplayAttribute& InAttribute, float NewValue);
 
 private:
 	

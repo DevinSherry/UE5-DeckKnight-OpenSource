@@ -42,22 +42,36 @@ UE_DEFINE_GAMEPLAY_TAG(Status_Block_AbilityInput, "Status.Block.Input.AbilityAct
 UE_DEFINE_GAMEPLAY_TAG(Status_Block_PassiveCardEnergyXPGain, "Status.Block.Cards.EnergyXP.PassiveGain")
 UE_DEFINE_GAMEPLAY_TAG(Status_Death, "Status.Death")
 UE_DEFINE_GAMEPLAY_TAG(Status_CanMoveInterrupt, "Status.Movement.CanInterrupt")
+UE_DEFINE_GAMEPLAY_TAG(Status_Damage_Immunity_All, "Status.Damage.Immunity.All")
+UE_DEFINE_GAMEPLAY_TAG(Status_Damage_Immunity_Elemental_Fire, "Status.Damage.Immunity.Elemental.Fire")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Immortal, "Status.Immortal",
+	"When applied, character health never reaches below 1.0f.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Invulnerable_Damage, "Status.Invulnerable.Damage",
+	"When applied, a character does not receive damage or reactions at all.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Invulnerable_Reactions, "Status.Invulnerable.Reactions",
+	"When applied, a character does not play any animation reactions, except for death.")
 
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingDamage, "Data.IncomingDamage")
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingHealing, "Data.IncomingHealing")
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingCardEnergyXP, "Data.IncomingCardEnergyXP")
-UE_DEFINE_GAMEPLAY_TAG(Data_CachedDamage, "Data.CachedDamage")
-UE_DEFINE_GAMEPLAY_TAG(Data_DamageOverTime, "Data.DamageOverTime")
+UE_DEFINE_GAMEPLAY_TAG(Data_CachedDamage, "Data.Damage.Cached")
+UE_DEFINE_GAMEPLAY_TAG(Data_DamageOverTime, "Data.Damage.OverTime")
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_ActiveCardEnergyXP, "Data.CardEnergyXP.Active",
 	"Used to tag incoming Card Energy XP as Active, meaning the XP was gained from an in-game action/event.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DebugSimulated, "Data.Damage.Simulated",
+	"Used to inform debug systems that the damage applied was simulated.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DamageCritical, "Data.Damage.Critical",
+	"Used to inform damage systems that the damage applied was a critical hit.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DamageResisted, "Data.Damage.Resisted",
+	"Used to inform damage systems that the damage applied was a critical hit.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_HealingLifeSteal, "Data.Healing.LifeSteal",
+	"Used to inform damage systems that the healing applied was from life steal mechanics.")
+
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Root, "Damage.Type")
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Physical, "Damage.Type.Physical")
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Elemental, "Damage.Type.Elemental")
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Elemental_Fire, "Damage.Type.Elemental.Fire")
-UE_DEFINE_GAMEPLAY_TAG(DamageType_Critical, "Damage.Type.Critical")
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Healing, "Damage.Type.Healing")
-UE_DEFINE_GAMEPLAY_TAG(DamageType_DebugSimulated, "Damage.Type.Debug.Simulated")
-UE_DEFINE_GAMEPLAY_TAG(DamageType_Resistance, "Damage.Type.Resistance")
 
 UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay, "Event.Gameplay")
 UE_DEFINE_GAMEPLAY_TAG(Event_OnDeath, "Event.Gameplay.OnDeath")

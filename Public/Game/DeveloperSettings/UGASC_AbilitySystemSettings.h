@@ -104,5 +104,22 @@ public:
 
 	static const UGASC_AbilitySystemSettings* Get() {return GetDefault<UGASC_AbilitySystemSettings>();}
 
+	/**
+	 * SimulatedDamageIgnoreAttributes
+	 *
+	 * Represents a collection of gameplay attributes that are excluded from damage calculations during simulated scenarios
+	 * within the ability system. This property allows customization of attributes that should be ignored when simulating
+	 * damage effects, providing finer control over damage mechanics. Configurable through the engine's settings interface.
+	 */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Damage")
+	TArray<FGameplayAttribute> SimulatedDamageIgnoreAttributes;
+	
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Damage|Immunities")
+	TSubclassOf<UGameplayEffect> AllDamageImmunityEffect;
+	
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Damage|Immunities")
+	TSubclassOf<UGameplayEffect> FireDamageImmunityEffect;
+	
 	UGASC_AbilitySystemSettings();
+	
 };
