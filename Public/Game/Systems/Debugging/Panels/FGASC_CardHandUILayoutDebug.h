@@ -25,6 +25,19 @@ public:
 	
 private:
 	
-	static float CardSpacing;
+	static float MinimumCardSpacing;
+	static float MaximumCardSpacing;
 	static float CardScale;
+	static float AnimationSpeed;
+	static float SelectedShowYAmount;
+	static float SelectedCardScale;
+	static float SelectedShowXAmount;
+	static float HandWidthPercentage;
+	static float CardArcAmount;
+	static float ExtraYOffset;
+	static float CardAngle;
+	
+	static bool bKeepStackOnLeft;
+	static bool bDoStackCardsOnSides;
+	static bool bSelectNextCardOnUse;
 };
