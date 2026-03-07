@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Game/Character/Components/Targeting/GASC_PlayerTargetingComponent.h"
+#include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "Game/GameplayAbilitySystem/GameplayAbilities/Instant/GASCourseInstantGameplayAbility.h"
 #include "GASC_GameplayAbility_Melee.generated.h"
 
@@ -31,7 +33,13 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category= "Components")
 	UMotionWarpingComponent* MotionWarpingComponent = nullptr;
-
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Components")
+	UGASC_PlayerTargetingComponent* PlayerTargetingComponent = nullptr;
+	
+	UPROPERTY(BlueprintReadOnly, Category="Components")
+	UGASC_InputBufferComponent* InputBufferComponent = nullptr;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category= "Events")
 	FGameplayTagContainer AnimationGameplayEvents;
 	

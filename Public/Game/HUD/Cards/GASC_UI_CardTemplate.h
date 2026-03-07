@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+
 #include "Blueprint/UserWidget.h"
+#include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
 #include "GASC_UI_CardTemplate.generated.h"
 
 /**
@@ -24,4 +25,7 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Information")
 	class UCardDataAsset* CardData;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Information")	
+	FCardInstance CardInstance;
 };

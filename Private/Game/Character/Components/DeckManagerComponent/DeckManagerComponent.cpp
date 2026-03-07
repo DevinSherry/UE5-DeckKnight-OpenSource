@@ -2,6 +2,7 @@
 
 
 #include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 // Sets default values for this component's properties
 UDeckManagerComponent::UDeckManagerComponent()
@@ -18,23 +19,81 @@ UDeckManagerComponent::UDeckManagerComponent()
 void UDeckManagerComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
+	AbilitySystemComponent = GetOwner()->FindComponentByClass<UAbilitySystemComponent>();
+	
 	// ...
 	
 }
 
-bool UDeckManagerComponent::ActivateCard(UCardDataAsset* CardToActivate)
+bool UDeckManagerComponent::ActivateCardByInstanceID(const FGuid& CardInstanceID)
 {
-	bool bCardActivated = false;
-
-	if (!CardToActivate)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Card to activate is NULL"));
-		return bCardActivated;
-	}
-
-	CardToActivate->ActivateCard(GetOwner());
 	
-	return bCardActivated;
+	FCardInstance* Card = CurrentHandInstance.FindByPredicate(
+		[&](const FCardInstance& C){ return C.CardInstanceId == CardInstanceID; });
+	
+	if (!Card)
+	{
+		UE_LOGFMT(LogTemp, Warning, "Attempted to activate card with instance ID %s, but it was not found in the current hand.", *CardInstanceID.ToString());
+		return false;
+	}
+	
+	UCardDataAsset* CardAsset = Card->CardDataAsset.LoadSynchronous();
+	if (!CardAsset)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Card asset was not found for instance ID %s"), *CardInstanceID.ToString());
+		return false;
+	}
+	
+	if (!AbilitySystemComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AbilitySystemComponent is NULL"));
+		return false;
+	}
+	
+	OnCardActivated.Broadcast(*Card);
+	UE_LOG(LogTemp, Warning, TEXT("Card level activated: %i"), Card->CardLevel);
+	CardAsset->CardData.CardAbilitySet->ActivateCard(AbilitySystemComponent, Card->CardLevel);
+	return true;
+}
+
+FCardInstance UDeckManagerComponent::DrawCardInstance()
+{
+	FCardInstance CardInstanceToDraw;
+	if (ActiveDeckInstance.IsEmpty())
+	{
+		UE_LOGFMT(LogTemp, Warning, "Attempted to draw card from an empty active deck, early exit.");
+		return CardInstanceToDraw;
+	}
+	CardInstanceToDraw = ActiveDeckInstance.Pop();
+	CurrentHandInstance.Add(CardInstanceToDraw);
+	CardInstanceToDraw.CardDataAsset = CardInstanceToDraw.CardDataAsset.LoadSynchronous();
+	OnCardAddedToHand.Broadcast(CardInstanceToDraw);
+	
+	return CardInstanceToDraw;
+}
+
+void UDeckManagerComponent::ForceCardInstanceInHand(FCardInstance CardInstanceToAdd)
+{
+	if (!CardInstanceToAdd.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Card to add to hand is NULL"));
+		return;
+	}
+	CurrentHandInstance.Add(CardInstanceToAdd);
+	OnCardAddedToHand.Broadcast(CardInstanceToAdd);
+}
+
+void UDeckManagerComponent::FindAllCards(TArray<FAssetData>& OutAllCards)
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	FARFilter Filter;
+	Filter.bRecursiveClasses = true;
+	Filter.bRecursivePaths = true;
+	
+	Filter.ClassPaths.Add(UCardDataAsset::StaticClass()->GetClassPathName());
+	Filter.PackagePaths.Add(FName("/Game"));
+	
+	AssetRegistry.GetAssets(Filter, OutAllCards);
 }
 

@@ -69,7 +69,6 @@ bool UGASCourse_WaitOverlapTask::InitializeOverlapComponent()
 		OverlapComponent = NewObject<USphereComponent>(GetAvatarActor(), USphereComponent::StaticClass());
 		if(OverlapComponent)
 		{
-			OverlapComponent->RegisterComponent();
 #if WITH_EDITOR
 			if(bDebugDraw)
 			{
@@ -77,16 +76,18 @@ bool UGASCourse_WaitOverlapTask::InitializeOverlapComponent()
 			}
 #endif 			
 			OverlapComponent->SetSphereRadius(SphereRadius);
-			const FAttachmentTransformRules& TransformRules = FAttachmentTransformRules::SnapToTargetIncludingScale;
-			OverlapComponent->AttachToComponent(ActorOwner->GetRootComponent(), TransformRules);
+			OverlapComponent->SetupAttachment(ActorOwner->GetRootComponent());
 			OverlapComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 			OverlapComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
 			OverlapComponent->SetCollisionProfileName(TEXT("OverlapOnlyPawn"), true);
+			OverlapComponent->RegisterComponent();
+			OverlapComponent->UpdateOverlaps();
 
 			TArray<AActor*> InitialOverlappingActors;
 			OverlapComponent->GetOverlappingActors(InitialOverlappingActors);
 			
 			TArray<TWeakObjectPtr<AActor>> WeakActorArray;
+			WeakActorArray.Reserve(InitialOverlappingActors.Num());
 			for(AActor* Actor : InitialOverlappingActors)
 			{
 				if(Actor && Actor != GetAvatarActor())

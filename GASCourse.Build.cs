@@ -30,7 +30,8 @@ public class GASCourse : ModuleRules
 			"MassMovement",
 			"MassSpawner",
 			"MassRepresentation",
-			"GameplayMessageRuntime"
+			"GameplayMessageRuntime", 
+			"ImGui",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]
@@ -40,7 +41,7 @@ public class GASCourse : ModuleRules
 			"MotionWarping",
 			"StateTreeModule",
 			"GameplayStateTreeModule", 
-			"Slate"
+			"Slate",
 		});
 
 		if (Target.Type == TargetType.Editor)

@@ -17,33 +17,6 @@ UGASCourseDurationGameplayAbility::UGASCourseDurationGameplayAbility(const FObje
 	AbilityType = EGASCourseAbilityType::Duration;
 }
 
-void UGASCourseDurationGameplayAbility::DurationEffectRemoved(
-	const FGameplayEffectRemovalInfo& GameplayEffectRemovalInfo)
-{
-	if(HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
-	{
-		if(bAutoCommitCooldownOnDurationEnd)
-		{
-			CommitAbilityCooldown(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true);
-		}
-		
-		if(bAutoEndAbilityOnDurationEnd)
-		{
-			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		}
-	}
-}
-
-UGameplayEffect* UGASCourseDurationGameplayAbility::GetDurationGameplayEffect() const
-{
-	if (DurationEffect )
-	{
-		return DurationEffect->GetDefaultObject<UGameplayEffect>();
-	}
-
-	return nullptr;
-}
-
 bool UGASCourseDurationGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handle,
                                                            const FGameplayAbilityActorInfo* ActorInfo, const FGameplayTagContainer* SourceTags,
                                                            const FGameplayTagContainer* TargetTags, FGameplayTagContainer* OptionalRelevantTags) const
@@ -163,61 +136,7 @@ void UGASCourseDurationGameplayAbility::OnPawnAvatarSet()
 	Super::OnPawnAvatarSet();
 }
 
-bool UGASCourseDurationGameplayAbility::ApplyDurationEffect()
-{
-	bool bSuccess = false;
-	
-	if((DurationEffect) && HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
-	{
-		if(const UGameplayEffect* DurationEffectObject = DurationEffect.GetDefaultObject())
-		{
-			if(DurationEffectObject->DurationPolicy == EGameplayEffectDurationType::HasDuration)
-			{
-				//TODO: Apply Player Level Info Here
-				DurationEffectHandle = ApplyGameplayEffectToOwner(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, DurationEffectObject, 1.0);
-				if(DurationEffectHandle.WasSuccessfullyApplied())
-				{
-					bSuccess = true;
-					
-					if(UAbilityTask_WaitGameplayEffectRemoved* DurationEffectRemovalTask = UAbilityTask_WaitGameplayEffectRemoved::WaitForGameplayEffectRemoved(this, DurationEffectHandle))
-					{
-						DurationEffectRemovalTask->OnRemoved.AddDynamic(this, &UGASCourseDurationGameplayAbility::DurationEffectRemoved);
-						DurationEffectRemovalTask->Activate();
-					} 
-				}
-				return bSuccess;
-			}
-			UE_LOG(LogBlueprint, Error, TEXT("%s: SUPPLIED GAMEPLAY EFFECT {%s} HAS INVALID DURATION POLICY {%s}."),*GASCOURSE_CUR_CLASS_FUNC, *DurationEffectObject->GetName(), *UEnum::GetValueAsString(DurationEffectObject->DurationPolicy));
-			return bSuccess;
-		}
-	}
-	
-	UE_LOG(LogBlueprint, Error, TEXT("%s: NO VALID DURATION EFFECT DEFINED IN DEFAULT SETTINGS"),*GASCOURSE_CUR_CLASS_FUNC);
-	return bSuccess;
-}
-
 void UGASCourseDurationGameplayAbility::GetAbilityDurationTags(FGameplayTagContainer& DurationTags) const
 {
 	Super::GetAbilityDurationTags(DurationTags);
-	
-	DurationTags.Reset();
-	if(const UGameplayEffect* DurationGE = GetDurationGameplayEffect())
-	{
-		DurationTags.AppendTags(DurationGE->GetGrantedTags());
-	}
-}
-
-void UGASCourseDurationGameplayAbility::OnAbilityInputPressed(float InTimeWaited)
-{
-	if(HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
-	{
-		if(bAutoCommitCooldownOnDurationEnd || bAutoEndAbilityOnDurationEnd)
-		{
-			BP_RemoveGameplayEffectFromOwnerWithHandle(DurationEffectHandle);
-		}
-		else
-		{
-			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-		}
-	}
 }

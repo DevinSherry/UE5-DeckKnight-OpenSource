@@ -13,7 +13,6 @@
 #include "Game/GameplayAbilitySystem/GASAbilityTagRelationshipMapping.h"
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseCharBaseAttributeSet.h"
 #include "Game/GameplayAbilitySystem/GameplayTagResponseTable/GASCourseStatusEffectTable.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
 #include "GASCourseCharacter.generated.h"
 
 class UGASCourseGameplayAbilitySet;

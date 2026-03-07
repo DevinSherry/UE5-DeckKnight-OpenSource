@@ -4,6 +4,8 @@
 #include "Game/BlueprintLibraries/GameplayAbilitySystem/GASCourseASCBlueprintLibrary.h"
 #include "AbilitySystemGlobals.h"
 #include "Game/Systems/Damage/GASCourseDamageExecution.h"
+#include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
+#include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 
 bool UGASCourseASCBlueprintLibrary::FindDamageTypeTagInContainer(const FGameplayTagContainer& InContainer, FGameplayTag& DamageTypeTag)
 {
@@ -42,7 +44,7 @@ EGASCourseAbilitySlotType UGASCourseASCBlueprintLibrary::GetGameplayAbilitySlotT
 	// try to get the ability instance
 	if(const UGASCourseGameplayAbility* AbilityInstance = Cast<UGASCourseGameplayAbility>(AbilitySpec->GetPrimaryInstance()))
 	{
-		AbilitySlot = AbilityInstance->GetAbilitySlotType();
+		AbilitySlot = AbilityInstance->GetAbilitySlot();
 	}
 
 	return AbilitySlot;
@@ -143,6 +145,52 @@ bool UGASCourseASCBlueprintLibrary::GrantAbilityToInputTag(UAbilitySystemCompone
 
 	const FGameplayAbilitySpecHandle AbilitySpecHandle = InASC->GiveAbility(AbilitySpec);
 
+	return true;
+}
+
+FGameplayTag UGASCourseASCBlueprintLibrary::GetNextAvailableActiveAbilitySlot(UAbilitySystemComponent* InASC)
+{
+	TArray<FGameplayAbilitySpec> ActiveAbilityHandles = InASC->GetActivatableAbilities();
+	int32 AbilitySlotCount = 0;
+	if (ActiveAbilityHandles.IsEmpty())
+	{
+		return InputTag_AbilityOne;
+	}
+	
+	for (FGameplayAbilitySpec AbilitySpec : ActiveAbilityHandles)
+	{
+		if (AbilitySpec.GetDynamicSpecSourceTags().HasTag(InputTag_AbilityBase))
+		{
+			AbilitySlotCount++;
+			continue;
+		}
+	}
+	
+	switch (AbilitySlotCount)
+	{
+		case 0: return InputTag_AbilityOne;
+		case 1: return InputTag_AbilityTwo;
+		case 2: return InputTag_AbilityThree;
+		case 3: return InputTag_AbilityFour;
+		case 4: return InputTag_AbilityFive;
+		default: return InputTag_AbilityOne;
+	}
+	
+}
+
+bool UGASCourseASCBlueprintLibrary::GrantAbilityToNextAvailableSlot(UAbilitySystemComponent* InASC, TSubclassOf<UGASCourseGameplayAbility> Ability,
+	int AbilityLevel)
+{
+	FGameplayTag ActiveSlotTag = GetNextAvailableActiveAbilitySlot(InASC);
+	if (!ActiveSlotTag.IsValid())
+	{
+		return false;
+	}
+	// Now grant that ability to the owning actor
+	FGameplayAbilitySpec AbilitySpec{ Ability, 0, 0};
+	AbilitySpec.SourceObject = nullptr;
+	AbilitySpec.GetDynamicSpecSourceTags().AddTag(ActiveSlotTag);
+	InASC->GiveAbility(AbilitySpec);
 	return true;
 }
 

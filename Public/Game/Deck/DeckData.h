@@ -29,23 +29,33 @@ enum ECardType
 };
 
 USTRUCT(BlueprintType)
+struct FCardInfo
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card|Info")
+	FText CardName;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card|Info")
+	FText CardDescription;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
+	TEnumAsByte<ECardType> CardType = ECardType::EmptyCard;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
+	TSoftObjectPtr<UTexture2D> CardIcon;
+
+};
+
+USTRUCT(BlueprintType)
 struct FCardData : public FTableRowBase
 {
 	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="GASCourse|Card|Info")
+	FCardInfo CardInfo;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
-	FText CardName;
-
-	/*
-	 * This needs to be more than just an FText. It needs to have dynamic values written into the description based on current player attributes & modifiers.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
-	FText CardDescription;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
-	TEnumAsByte<ECardType> CardType = ECardType::EmptyCard;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card|AbilitySet")
 	UBaseCardGameplayAbilitySet* CardAbilitySet = nullptr;
 	
 };

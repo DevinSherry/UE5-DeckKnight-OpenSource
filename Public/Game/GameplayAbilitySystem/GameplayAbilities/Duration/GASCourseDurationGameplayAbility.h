@@ -5,8 +5,6 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayAbility.h"
 #include "GASCourseDurationGameplayAbility.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGASCourseAbilityDurationRemoved);
-
 /**
  * @class UGASCourseDurationGameplayAbility
  * @brief This class represents a duration-based gameplay ability. It inherits from UGASCourseGameplayAbility.
@@ -23,17 +21,6 @@ class GASCOURSE_API UGASCourseDurationGameplayAbility : public UGASCourseGamepla
 public:
 	
 	UGASCourseDurationGameplayAbility(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
-
-	//Callback for when applied duration effect is removed. Ability must be of type EGASCourseAbilityType::Duration
-	UFUNCTION()
-	void DurationEffectRemoved(const FGameplayEffectRemovalInfo& GameplayEffectRemovalInfo);
-
-	/**
-	 * @brief Helper function to get a reference to the Duration Effect class.
-	 * @return 
-	 */
-	UFUNCTION(BlueprintCallable)
-	UGameplayEffect* GetDurationGameplayEffect() const;
 
 	/**
 	 * @brief Retrieves the gameplay tags associated with the duration of the ability.
@@ -65,47 +52,5 @@ protected:
 	//~End of UGameplayAbility interface
 
 	virtual void OnPawnAvatarSet();
-	
-	//The duration effect to be applied, dictates how long the ability will last for.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
-	TSubclassOf<UGameplayEffect> DurationEffect;
-
-	/*Auto apply the duration effect on ability activation, otherwise use function Apply Duration Effect**/
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
-	bool bAutoApplyDurationEffect;
-
-	/*Manually apply either class duration effect, or custom duration effect**/
-	UFUNCTION(BlueprintCallable, Category = "GASCourse|Ability|Duration")
-	UPARAM(DisplayName= "bDurationEffectApplied")
-	bool ApplyDurationEffect();
-
-	UFUNCTION()
-	void OnAbilityInputPressed(float InTimeWaited);
-
-	/**
- * @brief Should the ability automatically commit cooldown when the duration effect ends?
- */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
-	bool bAutoCommitCooldownOnDurationEnd;
-
-	/**
- * @brief Should the ability automatically end when the duration effect ends?
- */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
-	bool bAutoEndAbilityOnDurationEnd;
-
-	/**
-	 * @brief Indicates whether the ability should be canceled upon reactivation.
-	 *
-	 * If this flag is set to true, the ability will be canceled if it is reactivated while it is still active. By default, this flag is true, meaning the ability will continue to run even
-	 * if it is reactivated.
-	 *
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration")
-	bool bCancelAbilityOnReactivation;
-
-private:
-	
-	FActiveGameplayEffectHandle DurationEffectHandle;
 	
 };

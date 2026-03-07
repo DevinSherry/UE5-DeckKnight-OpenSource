@@ -7,7 +7,9 @@
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectTypes.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEffectRemoved.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Game/Character/Player/GASCoursePlayerCharacter.h"
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "Game/GameplayAbilitySystem/GameplayAbilities/GASC_AbilityParamsObject.h"
 #include "Game/GameplayAbilitySystem/Tasks/DamagePipeline/GASC_OnHitEventTask.h"
@@ -24,7 +26,7 @@ UGASCourseGameplayAbility::UGASCourseGameplayAbility(const FObjectInitializer& O
 
 	ActivationPolicy = EGASCourseAbilityActivationPolicy::OnInputTriggered;
 	AbilityType = EGASCourseAbilityType::Instant;
-	AbilitySlotType = EGASCourseAbilitySlotType::PrimarySlot;
+	AbilitySlotType = EGASCourseAbilitySlotType::EmptySlot;
 
 	bAutoCommitAbilityOnActivate = true;
 }
@@ -144,66 +146,31 @@ void UGASCourseGameplayAbility::OnGiveAbility(const FGameplayAbilityActorInfo* A
 	K2_OnAbilityAdded();
 	TryActivateAbilityOnSpawn(ActorInfo, Spec);
 	
-	if (UGASC_AbilityParamsObject* ParamsObject = Cast<UGASC_AbilityParamsObject>(Spec.SourceObject))
+	ApplyAbilityParamsFromSourceObject(Spec);
+	if (GetAbilitySlot() == EGASCourseAbilitySlotType::EmptySlot)
 	{
-		const FInstancedPropertyBag& Bag = ParamsObject->Params;
-		if (const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct())
-		{
-			// For each property the bag knows about
-			for (const FPropertyBagPropertyDesc& Desc : PBStruct->GetPropertyDescs())
-			{
-				// Find same-named property on this ability class
-				if (FProperty* DestProp = GetClass()->FindPropertyByName(Desc.Name))
-				{
-					// Get the memory address of the bag's storage for this property
-					// Use the descriptor to get the value address from the BAG, not from the PropertyBag struct
-					const FPropertyBagPropertyDesc* BagDesc = PBStruct->FindPropertyDescByName(Desc.Name);
-					if (!BagDesc || !BagDesc->CachedProperty)
-					{
-						continue;
-					}
-
-					// Get source pointer from the actual bag instance data
-					FConstStructView BagValue = Bag.GetValue();
-					const void* SrcPtr = BagDesc->CachedProperty->ContainerPtrToValuePtr<void>(BagValue.GetMemory());
-					void* DstPtr = DestProp->ContainerPtrToValuePtr<void>(this);
-
-					if (SrcPtr && DstPtr)
-					{
-						// Let reflection do the copy, regardless of type
-						DestProp->CopyCompleteValue(DstPtr, SrcPtr);
-					}
-				}
-			}
-		}
+		return;
 	}
+	ConfigureAbilityFromGrantedSpec(Spec);
 	
-	if (GetAbilitySlotType() == EGASCourseAbilitySlotType::PrimarySlot)
-	{
-		FGameplayEventData OnAbilityGranted;
-		OnAbilityGranted.EventTag = Event_Gameplay_OnAbilityGranted;
-		OnAbilityGranted.Instigator = GetAvatarActorFromActorInfo();
-		OnAbilityGranted.Target = GetAvatarActorFromActorInfo();
-		OnAbilityGranted.OptionalObject = this;
-		GetAbilitySystemComponentFromActorInfo()->HandleGameplayEvent(Event_Gameplay_OnAbilityGranted, &OnAbilityGranted);
-	}
+	FGameplayEventData OnAbilityGranted;
+	OnAbilityGranted.EventTag = Event_Gameplay_OnAbilityGranted;
+	OnAbilityGranted.Instigator = GetAvatarActorFromActorInfo();
+	OnAbilityGranted.Target = GetAvatarActorFromActorInfo();
+	OnAbilityGranted.OptionalObject = this;
+	GetAbilitySystemComponentFromActorInfo()->HandleGameplayEvent(Event_Gameplay_OnAbilityGranted, &OnAbilityGranted);
 }
 
 void UGASCourseGameplayAbility::OnRemoveAbility(const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilitySpec& Spec)
 {
-	if (InstancingPolicy == EGameplayAbilityInstancingPolicy::InstancedPerExecution)
+	if (UGASCourseAbilitySystemComponent* ASC = GetGASCourseAbilitySystemComponentFromActorInfo())
 	{
-		if (IsActive())
-		{
-			EndAbility(Spec.Handle, ActorInfo, CurrentActivationInfo, true, false);
-			K2_OnAbilityRemoved();
-			return;
-		}
+		ASC->CardAbilityConfigHandles.Remove(Spec.Handle);
 	}
-
 	EndAbility(Spec.Handle, ActorInfo, Spec.GetPrimaryInstance()->GetCurrentActivationInfo(), true, false);
 	K2_OnAbilityRemoved();
+	OnAbilityClearedDelegate.Broadcast(this);
 	Super::OnRemoveAbility(ActorInfo, Spec);
 }
 
@@ -214,6 +181,13 @@ void UGASCourseGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 	if(bAutoCommitAbilityOnActivate)
 	{
 		CommitAbility(Handle, ActorInfo, ActivationInfo);
+	}
+	if (AbilityType == EGASCourseAbilityType::Duration && bAutoApplyDurationEffect)
+	{
+		if(!ApplyDurationEffect())
+		{
+			EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+		}
 	}
 	
 	//Wait for On Hit Applied Task Event
@@ -235,6 +209,24 @@ void UGASCourseGameplayAbility::EndAbility(const FGameplayAbilitySpecHandle Hand
 	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
 	bool bReplicateEndAbility, bool bWasCancelled)
 {
+	if (AGASCoursePlayerState* PS = Cast<AGASCoursePlayerState>(GetOwningActorFromActorInfo()))
+	{
+		if (UDeckManagerComponent* DeckManagerComponent = PS->DeckManagerComponent)
+		{
+			//Check Duration	`
+			//Check Cooldown
+			//Check Stacks
+			if (AbilitySlotType == EGASCourseAbilitySlotType::ActiveAbilitySlot || AbilitySlotType == EGASCourseAbilitySlotType::EvasiveAbilitySlot)
+			{
+				if (AbilityType == EGASCourseAbilityType::Duration)
+				{
+					Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+					return;
+				}
+				GetAbilitySystemComponentFromActorInfo_Ensured()->ClearAbility(Handle);
+			}
+		}
+	}
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
@@ -497,6 +489,11 @@ void UGASCourseGameplayAbility::GetAbilityCooldownTags(FGameplayTagContainer& Co
 
 void UGASCourseGameplayAbility::GetAbilityDurationTags(FGameplayTagContainer& DurationTags) const
 {
+	DurationTags.Reset();
+	if (DurationEffect)
+	{
+		DurationTags.AppendTags(DurationEffect.GetDefaultObject()->GetGrantedTags());
+	}
 }
 
 float UGASCourseGameplayAbility::GetGrantedbyEffectDuration() const
@@ -536,6 +533,73 @@ void UGASCourseGameplayAbility::GetStackedAbilityDurationTags(FGameplayTagContai
 	}
 }
 
+void UGASCourseGameplayAbility::ApplyAbilityParamsFromSourceObject(const FGameplayAbilitySpec& Spec)
+{
+	if (UGASC_AbilityParamsObject* ParamsObject = Cast<UGASC_AbilityParamsObject>(Spec.SourceObject))
+	{
+		const FInstancedPropertyBag& Bag = ParamsObject->Params;
+		if (const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct())
+		{
+			// For each property the bag knows about
+			for (const FPropertyBagPropertyDesc& Desc : PBStruct->GetPropertyDescs())
+			{
+				// Find same-named property on this ability class
+				if (FProperty* DestProp = GetClass()->FindPropertyByName(Desc.Name))
+				{
+					// Get the memory address of the bag's storage for this property
+					// Use the descriptor to get the value address from the BAG, not from the PropertyBag struct
+					const FPropertyBagPropertyDesc* BagDesc = PBStruct->FindPropertyDescByName(Desc.Name);
+					if (!BagDesc || !BagDesc->CachedProperty)
+					{
+						continue;
+					}
+
+					// Get source pointer from the actual bag instance data
+					FConstStructView BagValue = Bag.GetValue();
+					const void* SrcPtr = BagDesc->CachedProperty->ContainerPtrToValuePtr<void>(BagValue.GetMemory());
+					void* DstPtr = DestProp->ContainerPtrToValuePtr<void>(this);
+
+					if (SrcPtr && DstPtr)
+					{
+						// Let reflection do the copy, regardless of type
+						DestProp->CopyCompleteValue(DstPtr, SrcPtr);
+					}
+				}
+			}
+		}
+	}
+}
+
+void UGASCourseGameplayAbility::ConfigureAbilityFromGrantedSpec(const FGameplayAbilitySpec& Spec)
+{
+	UGASCourseGameplayAbility* TemplateAbility = Cast<UGASCourseGameplayAbility>(Spec.Ability.Get());
+	if (!TemplateAbility)
+	{
+		UE_LOGFMT(LogTemp, Warning, "Invalid ability provided in spec!");
+		return;
+	}
+	if (UGASCourseAbilitySystemComponent* ASC = GetGASCourseAbilitySystemComponentFromActorInfo())
+	{
+		if (const FGrantedCardAbilityConfig* CardAbilityConfig = ASC->CardAbilityConfigHandles.Find(Spec.Handle))
+		{
+			AbilityType = CardAbilityConfig->AbilityType;
+			if (AbilityType == EGASCourseAbilityType::Duration)
+			{
+				ConfigureAbilityDuration(*CardAbilityConfig);
+			}
+		}
+	}
+}
+
+void UGASCourseGameplayAbility::ConfigureAbilityDuration(const FGrantedCardAbilityConfig& CardAbilityConfig)
+{
+	DurationEffect = CardAbilityConfig.DurationEffect;
+	bAutoApplyDurationEffect = true;
+	bAutoEndAbilityOnDurationEnd = true;
+	bAutoCommitAbilityOnActivate = false;
+	bAutoCommitCooldownOnDurationEnd = true;
+}
+
 FVector UGASCourseGameplayAbility::GetInputDirection() const
 {
 	const AGASCoursePlayerCharacter* OwningPlayerCharacter = GetGASCouresPlayerCharacterFromActorInfo();
@@ -570,6 +634,79 @@ FVector UGASCourseGameplayAbility::GetInputDirection() const
 	}
 	
 	return CharacterMovementComponent->GetLastInputVector().GetSafeNormal();
+}
+
+void UGASCourseGameplayAbility::DurationEffectRemoved(const FGameplayEffectRemovalInfo& GameplayEffectRemovalInfo)
+{
+	// Clear stored handle
+	if (DurationEffectRemovedDelegateHandle.IsValid())
+	{
+		DurationEffectRemovedDelegateHandle.Reset();
+	}
+
+	if(HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
+	{
+		if(bAutoCommitCooldownOnDurationEnd)
+		{
+			CommitAbilityCooldown(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true);
+		}
+		
+		if(bAutoEndAbilityOnDurationEnd)
+		{
+			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+			GetAbilitySystemComponentFromActorInfo_Ensured()->ClearAbility(CurrentSpecHandle);
+		}
+	}
+}
+
+bool UGASCourseGameplayAbility::ApplyDurationEffect()
+{
+	bool bSuccess = false;
+	
+	int32 DurationEffectCount = GetAbilitySystemComponentFromActorInfo()->GetGameplayEffectCount(DurationEffect, 
+		nullptr);
+	if (DurationEffectCount > 0)
+	{
+		return true;
+	}
+
+	if (DurationEffect && HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
+	{
+		if (UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo())
+		{
+			FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
+			ContextHandle.AddInstigator(ASC->GetOwnerActor(), ASC->GetOwnerActor());
+			FActiveGameplayEffectHandle DurationGameplayEffectHandle = ASC->ApplyGameplayEffectToSelf(DurationEffect.GetDefaultObject(), GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo), 
+				ContextHandle);
+			
+			if(DurationGameplayEffectHandle.WasSuccessfullyApplied())
+			{
+				bSuccess = true;
+				if (FOnActiveGameplayEffectRemoved_Info* RemoveDelegate = ASC->OnGameplayEffectRemoved_InfoDelegate(DurationGameplayEffectHandle))
+				{
+					DurationEffectRemovedDelegateHandle = RemoveDelegate->AddUObject(this, &UGASCourseGameplayAbility::DurationEffectRemoved);
+				}
+			}
+			return bSuccess;
+		}
+	}
+	
+	return bSuccess;
+}
+
+void UGASCourseGameplayAbility::OnAbilityInputPressed(float InTimeWaited)
+{
+	if(HasAuthorityOrPredictionKey(CurrentActorInfo, &CurrentActivationInfo))
+	{
+		if(bAutoCommitCooldownOnDurationEnd || bAutoEndAbilityOnDurationEnd)
+		{
+			BP_RemoveGameplayEffectFromOwnerWithHandle(DurationEffectHandle);
+		}
+		else
+		{
+			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+		}
+	}
 }
 
 void UGASCourseGameplayAbility::InvokeAbilityFailHapticFeedback() const

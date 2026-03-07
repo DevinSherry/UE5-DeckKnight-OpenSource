@@ -47,6 +47,129 @@ void AGASCoursePlayerCharacter::UpdateCharacterAnimLayer(TSubclassOf<UAnimInstan
 	}
 }
 
+void AGASCoursePlayerCharacter::ApplyAbilityChordedInputMapping(UGASCourseEnhancedInputComponent* EnhancedInputComponent)
+{
+	if (!EnhancedInputComponent || !AbilityChordData)
+	{
+		return;
+	}
+
+	UInputAction* ChordedAction = AbilityChordData->AbilityChordInputAction;
+	if (!ChordedAction)
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	ULocalPlayer* LocalPlayer = PC->GetLocalPlayer();
+	if (!LocalPlayer)
+	{
+		return;
+	}
+
+	UEnhancedInputLocalPlayerSubsystem* InputSystem =
+		LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+	if (!InputSystem)
+	{
+		return;
+	}
+
+	// Capture concrete values now (don't rely on AbilityChordData later)
+	UInputMappingContext* MappingContext = AbilityChordData->AbilityChordInputMappingContext;
+	const int32 Priority = AbilityChordData->AbilityChordInputPriority;
+	const FModifyContextOptions Options = AbilityChordData->ModifyContextOptions;
+
+	if (!MappingContext)
+	{
+		return;
+	}
+
+	// Weak refs so we don't crash if things get destroyed
+	const TWeakObjectPtr<AGASCoursePlayerCharacter> WeakThis(this);
+	const TWeakObjectPtr<UEnhancedInputLocalPlayerSubsystem> WeakSubsystem(InputSystem);
+	const TWeakObjectPtr<UInputMappingContext> WeakContext(MappingContext);
+
+	auto RemoveContext = [WeakThis, WeakSubsystem, WeakContext, Options](const FInputActionInstance&)
+	{
+		if (!WeakThis.IsValid())
+		{
+			return;
+		}
+
+		UEnhancedInputLocalPlayerSubsystem* Subsystem = WeakSubsystem.Get();
+		UInputMappingContext* Context = WeakContext.Get();
+		if (!Subsystem || !Context)
+		{
+			return;
+		}
+
+		if (Subsystem->HasMappingContext(Context))
+		{
+			Subsystem->RemoveMappingContext(Context, Options);
+		}
+	};
+
+	EnhancedInputComponent->BindActionInstanceLambda(
+		ChordedAction,
+		ETriggerEvent::Started,
+		[WeakThis, WeakSubsystem, WeakContext, Priority, Options](const FInputActionInstance&)
+		{
+			if (!WeakThis.IsValid())
+			{
+				return;
+			}
+
+			UEnhancedInputLocalPlayerSubsystem* Subsystem = WeakSubsystem.Get();
+			UInputMappingContext* Context = WeakContext.Get();
+			if (!Subsystem || !Context)
+			{
+				return;
+			}
+
+			if (!Subsystem->HasMappingContext(Context))
+			{
+				Subsystem->AddMappingContext(Context, Priority, Options);
+			}
+		}
+	);
+
+	EnhancedInputComponent->BindActionInstanceLambda(ChordedAction, ETriggerEvent::Completed, RemoveContext);
+	EnhancedInputComponent->BindActionInstanceLambda(ChordedAction, ETriggerEvent::Canceled,  RemoveContext);
+	bAbilityChordedBound = true;
+}
+
+void AGASCoursePlayerCharacter::RemoveAbilityChordedInputMapping()
+{
+	if (!AbilityChordData || !AbilityChordData->AbilityChordInputMappingContext)
+	{
+		return;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC) return;
+
+	ULocalPlayer* LP = PC->GetLocalPlayer();
+	if (!LP) return;
+
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+	if (!Subsystem) return;
+
+	if (Subsystem->HasMappingContext(AbilityChordData->AbilityChordInputMappingContext))
+	{
+		Subsystem->RemoveMappingContext(
+			AbilityChordData->AbilityChordInputMappingContext,
+			AbilityChordData->ModifyContextOptions
+		);
+	}
+	
+	bAbilityChordedBound = false;
+}
+
 void AGASCoursePlayerCharacter::InitializeCamera()
 {
 	if (CameraSettingsData)
@@ -117,6 +240,10 @@ void AGASCoursePlayerCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 			EnhancedInputComponent->BindAbilityActions(InputConfig, this, &ThisClass::Input_AbilityInputTagPressed, &ThisClass::Input_AbilityInputTagReleased, /*out*/ BindHandles);
 
 			BindASCInput();
+			if (!bAbilityChordedBound)
+			{
+				ApplyAbilityChordedInputMapping(EnhancedInputComponent);
+			}
 		}
 	}
 }
@@ -144,6 +271,18 @@ void AGASCoursePlayerCharacter::PossessedBy(AController* NewController)
 	
 	UpdateCharacterAnimLayer(UnArmedAnimLayer);
 	InitializeCamera();
+}
+
+void AGASCoursePlayerCharacter::UnPossessed()
+{
+	RemoveAbilityChordedInputMapping();
+	Super::UnPossessed();
+}
+
+void AGASCoursePlayerCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	RemoveAbilityChordedInputMapping();
+	Super::EndPlay(EndPlayReason);
 }
 
 void AGASCoursePlayerCharacter::OnRep_PlayerState()

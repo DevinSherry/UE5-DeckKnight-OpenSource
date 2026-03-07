@@ -103,6 +103,12 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintAuthorityOnly, Category = "GASCourse|AbilitySystem|Damage")
 	static void SendGameplayEventToTargetDataHandle(FGameplayAbilityTargetDataHandle TargetHandle, FGameplayTag EventTag, FGameplayEventData Payload);
 
+	UFUNCTION(BlueprintPure, Category = "GASCourse|AbilitySystem")
+	static bool AbilitySpecHandleIsValid(const FGameplayAbilitySpecHandle& AbilitySpecHandle)
+	{
+		return AbilitySpecHandle.IsValid();
+	}
+
 	/**
 	 * Retrieves the gameplay attribute from a given modifier struct.
 	 *
@@ -145,4 +151,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "GASCourse|AbilitySystem|GameplayAbility")
 	static bool GrantAbilityToInputTag(UAbilitySystemComponent* InASC, TSubclassOf<UGASCourseGameplayAbility> Ability, int AbilityLevel, FGameplayTag InputTag);
+	
+	UFUNCTION(BlueprintCallable, Category = "GASCourse|AbilitySystem|GameplayAbility")
+	static FGameplayTag GetNextAvailableActiveAbilitySlot(UAbilitySystemComponent* InASC);
+	
+	UFUNCTION(BlueprintCallable, Category = "GASCourse|AbilitySystem|GameplayAbility")
+	static bool GrantAbilityToNextAvailableSlot(UAbilitySystemComponent* InASC, TSubclassOf<UGASCourseGameplayAbility> Ability, int AbilityLevel);
 };

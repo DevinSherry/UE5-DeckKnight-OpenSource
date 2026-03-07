@@ -4,8 +4,10 @@
 
 #include "GASCourseAbilitySystemComponent.h"
 #include "GASCourseGameplayAbility.h"
+#include "Game/GameplayAbilitySystem/AttributeSets/GASCourseAttributeSet.h"
 #include "GASCourseGameplayAbilitySet.generated.h"
 
+class UGASCourseAttributeSet;
 /**
  * FGASCourseAbilitySet_GameplayAbility
  *

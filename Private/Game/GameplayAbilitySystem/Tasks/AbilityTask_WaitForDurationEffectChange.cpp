@@ -12,23 +12,12 @@ UAbilityTask_WaitOnDurationChange* UAbilityTask_WaitOnDurationChange::WaitOnDura
 	MyObj->DurationInterval = InDurationInterval;
 	MyObj->bUseServerCooldown = bInUseServerCooldown;
 
-
 	if(!IsValid(InAbilitySystemComponent) || InDurationTags.Num() < 1)
 	{
 		MyObj->EndTask();
 		return nullptr;
 	}
-
 	InAbilitySystemComponent->OnActiveGameplayEffectAddedDelegateToSelf.AddUObject(MyObj, &UAbilityTask_WaitForDurationEffectChange::OnActiveGameplayEffectAddedCallback);
-
-	TArray<FGameplayTag> DurationTagArray;
-	InDurationTags.GetGameplayTagArray(DurationTagArray);
-
-	for(const FGameplayTag DurationTag : DurationTagArray)
-	{
-		InAbilitySystemComponent->RegisterGameplayTagEvent(DurationTag, EGameplayTagEventType::NewOrRemoved).AddUObject(MyObj, &UAbilityTask_WaitForDurationEffectChange::DurationTagChanged);
-	}
-	
 	return MyObj;
 }
 
@@ -42,8 +31,7 @@ UAbilityTask_WaitOnCooldownChange* UAbilityTask_WaitOnCooldownChange::WaitOnCool
 	MyObj->DurationTags = InCooldownTags;
 	MyObj->DurationInterval = InDurationInterval;
 	MyObj->bUseServerCooldown = bInUseServerCooldown;
-
-
+	
 	if(!IsValid(InAbilitySystemComponent) || InCooldownTags.Num() < 1)
 	{
 		MyObj->EndTask();
@@ -51,15 +39,6 @@ UAbilityTask_WaitOnCooldownChange* UAbilityTask_WaitOnCooldownChange::WaitOnCool
 	}
 
 	InAbilitySystemComponent->OnActiveGameplayEffectAddedDelegateToSelf.AddUObject(MyObj, &UAbilityTask_WaitForDurationEffectChange::OnActiveGameplayEffectAddedCallback);
-
-	TArray<FGameplayTag> DurationTagArray;
-	InCooldownTags.GetGameplayTagArray(DurationTagArray);
-
-	for(const FGameplayTag DurationTag : DurationTagArray)
-	{
-		InAbilitySystemComponent->RegisterGameplayTagEvent(DurationTag, EGameplayTagEventType::NewOrRemoved).AddUObject(MyObj, &UAbilityTask_WaitForDurationEffectChange::DurationTagChanged);
-	}
-	
 	return MyObj;
 }
 
@@ -103,28 +82,12 @@ void UAbilityTask_WaitForDurationEffectChange::OnActiveGameplayEffectAddedCallba
 
 			const FGameplayTagContainer DurationTagContainer(GrantedTags.GetByIndex(0));
 			GetCooldownRemainingForTag(DurationTagContainer, TimeRemaining, Duration);
+			
+			ASC->OnGameplayEffectRemoved_InfoDelegate(ActiveHandle)
+				->AddUObject(this, &UAbilityTask_WaitForDurationEffectChange::HandleGameplayEffectRemoved);
 
-			if (ASC->GetOwnerRole() == ROLE_Authority)
-			{
-				// Player is Server
-				OnDurationBegin.Broadcast(DurationTag, TimeRemaining, Duration);
-			}
-			else if (!bUseServerCooldown && InSpecApplied.GetContext().GetAbilityInstance_NotReplicated())
-			{
-				// Client using predicted cooldown
-				OnDurationBegin.Broadcast(DurationTag, TimeRemaining, Duration);
-			}
-			else if (bUseServerCooldown && InSpecApplied.GetContext().GetAbilityInstance_NotReplicated() == nullptr)
-			{
-				// Client using Server's cooldown. This is Server's corrective cooldown GE.
-				OnDurationBegin.Broadcast(DurationTag, TimeRemaining, Duration);
-			}
-			else if (bUseServerCooldown && InSpecApplied.GetContext().GetAbilityInstance_NotReplicated())
-			{
-				// Client using Server's cooldown but this is predicted cooldown GE.
-				// This can be useful to gray out abilities until Server's cooldown comes in.
-				OnDurationBegin.Broadcast(DurationTag, -1.0f, -1.0f);
-			}
+			// Player is Server
+			OnDurationBegin.Broadcast(DurationTag, TimeRemaining, Duration);
 			
 			if(WorldContext)
 			{
@@ -135,16 +98,13 @@ void UAbilityTask_WaitForDurationEffectChange::OnActiveGameplayEffectAddedCallba
 	}
 }
 
-void UAbilityTask_WaitForDurationEffectChange::DurationTagChanged(const FGameplayTag InDurationTag, int32 InNewCount)
+void UAbilityTask_WaitForDurationEffectChange::HandleGameplayEffectRemoved(const FGameplayEffectRemovalInfo& Info)
 {
-	if(InNewCount == 0)
+	OnDurationEnd.Broadcast();
+	if(WorldContext)
 	{
-		OnDurationEnd.Broadcast(InDurationTag, -1.0f, -1.0f);
-		if(WorldContext)
-		{
-			WorldContext->GetWorld()->GetTimerManager().ClearTimer(DurationTimeUpdateTimerHandle);
-			WorldContext->GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
-		}
+		WorldContext->GetWorld()->GetTimerManager().ClearTimer(DurationTimeUpdateTimerHandle);
+		WorldContext->GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
 	}
 }
 

@@ -24,11 +24,15 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = DeckManagement, meta = (AllowPrivateAccess = "true"))
 	class UDeckManagerComponent* DeckManagerComponent;
+	
 
 public:
 
 	UFUNCTION(BlueprintCallable, Category="GASCourse|PlayerState")
 	UGASCourseAbilitySystemComponent* GetGASCourseAbilitySystemComponent() const {return AbilitySystemComponent;}
+	
+	UFUNCTION(BlueprintCallable, Category="GASCourse|PlayerState")
+	UDeckManagerComponent* GetDeckManagerComponent() const {return DeckManagerComponent;}
 	
 	virtual UGASCourseAbilitySystemComponent* GetAbilitySystemComponent() const override;
 	virtual bool ReplicateSubobjects(class UActorChannel *Channel, class FOutBunch *Bunch, FReplicationFlags *RepFlags) override;

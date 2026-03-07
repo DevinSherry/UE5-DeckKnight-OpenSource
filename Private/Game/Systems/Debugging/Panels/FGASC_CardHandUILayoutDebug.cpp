@@ -3,6 +3,7 @@
 
 #include "Game/Systems/Debugging/Panels/FGASC_CardHandUILayoutDebug.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "imgui.h"
 
 float FGASC_CardHandUILayoutDebug::MaximumCardSpacing = 0.5f;
 float FGASC_CardHandUILayoutDebug::MinimumCardSpacing = 0.3f;

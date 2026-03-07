@@ -47,9 +47,8 @@ void UGASC_GrantAbilityOverride::GrantAbilities(FActiveGameplayEffectHandle Acti
 		{
 			continue;
 		}
-
-		const FString ContextString = FString::Printf(TEXT("%s for %s from %s"), ANSI_TO_TCHAR(__func__), *AbilityCDO->GetName(), *GetNameSafe(ActiveGESpec.Def));
-		const int32 Level = static_cast<int32>(AbilityConfig.LevelScalableFloat.GetValueAtLevel(ActiveGESpec.GetLevel(), &ContextString));
+		
+		const int32 Level = static_cast<int32>(ActiveGESpec.GetLevel());
 
 		// Now grant that ability to the owning actor
 		FGameplayAbilitySpec AbilitySpec{ AbilityConfig.Ability, Level, AbilityConfig.InputID, ActiveGESpec.GetEffectContext().GetSourceObject() };

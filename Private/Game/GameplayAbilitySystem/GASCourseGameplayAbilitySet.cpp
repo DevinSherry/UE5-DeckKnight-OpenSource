@@ -4,6 +4,7 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayAbilitySet.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 
+
 void FGASCourseAbilitySet_GrantedHandles::AddAbilitySpecHandle(const FGameplayAbilitySpecHandle& Handle)
 {
 	if (Handle.IsValid())

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AbilitySystemComponent.h"
+#include "GASCourseGameplayAbility.h"
 #include "Game/GameplayAbilitySystem/GASAbilityTagRelationshipMapping.h"
 #include "GameplayTagResponseTable/GASCourseStatusEffectTable.h"
 #include "GASCourseAbilitySystemComponent.generated.h"
@@ -89,6 +90,9 @@ public:
 
 	UFUNCTION(BlueprintPure, meta=(GameplayTagFilter="Input.NativeAction.Ability"))
 	TSubclassOf<UGameplayAbility> GetAbilityFromTaggedInput(FGameplayTag InputTag);
+	
+	UPROPERTY(BlueprintReadOnly)
+	TMap<FGameplayAbilitySpecHandle, FGrantedCardAbilityConfig> CardAbilityConfigHandles;
 
 protected:
 

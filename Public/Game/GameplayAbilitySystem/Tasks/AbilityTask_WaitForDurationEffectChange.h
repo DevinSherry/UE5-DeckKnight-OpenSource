@@ -9,6 +9,7 @@
 
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnDurationChanged, FGameplayTag, DurationTag, float, TimeRemaining, float, Duration);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDurationEnded);
 
 /**
  * UAbilityTask_WaitForDurationEffectChange is an abstract class derived from UBlueprintAsyncActionBase.
@@ -38,7 +39,7 @@ public:
 	FOnDurationChanged OnDurationBegin;
 
 	UPROPERTY(BlueprintAssignable)
-	FOnDurationChanged OnDurationEnd;
+	FOnDurationEnded OnDurationEnd;
 
 	UPROPERTY(BlueprintAssignable)
 	FOnDurationChanged OnDurationTimeUpdated;
@@ -74,7 +75,7 @@ public:
 	 * \param InDurationTag The gameplay tag of the duration effect.
 	 * \param InNewCount The new count of the duration effect.
 	 */
-	void DurationTagChanged(const FGameplayTag InDurationTag, int32 InNewCount);
+	void HandleGameplayEffectRemoved(const FGameplayEffectRemovalInfo& Info);
 
 
 protected:

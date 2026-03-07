@@ -2,6 +2,7 @@
 
 
 #include "Game/GameplayAbilitySystem/GameplayAbilities/Instant/GASCourseJumpGameplayAbility.h"
+#include "GameFramework/Character.h"
 
 UGASCourseJumpGameplayAbility::UGASCourseJumpGameplayAbility(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

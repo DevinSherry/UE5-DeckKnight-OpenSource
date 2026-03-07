@@ -186,6 +186,7 @@ UGASC_UI_DamageNumber* UGASC_UI_DamageNumberPanel::GetPooledDamageNumber()
 
 	UGASC_UI_DamageNumber* NewWidget =
 		CreateWidget<UGASC_UI_DamageNumber>(GetWorld(), DamageNumberClass);
+	UE_LOGFMT(LogTemp, Warning, "New Damage Number");
 
 	if (!IsValid(NewWidget))
 		return nullptr;

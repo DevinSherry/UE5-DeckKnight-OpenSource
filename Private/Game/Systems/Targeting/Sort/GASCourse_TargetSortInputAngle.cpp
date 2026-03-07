@@ -52,7 +52,7 @@ void UGASCourse_TargetSortInputAngle::Init(const FTargetingRequestHandle& Target
 
 		FRotator Delta = UKismetMathLibrary::NormalizedDeltaRotator(SourcePawn->GetActorRotation(), SourcePawn->GetControlRotation());
 		Delta.Pitch = 0.0f;
-		InputDirection = Delta.UnrotateVector(CharacterInputDirection);
+		InputDirection = CharacterInputDirection; //Delta.UnrotateVector(CharacterInputDirection);
 
 #if !UE_BUILD_SHIPPING
 		if(GASCourse_TargetingSystemCVars::bEnableInputTargetingDebug)
@@ -88,7 +88,7 @@ float UGASCourse_TargetSortInputAngle::GetScoreForTarget(const FTargetingRequest
 			{
 				FRotator Delta = UKismetMathLibrary::NormalizedDeltaRotator(SourcePawn->GetActorRotation(), SourcePawn->GetControlRotation());
 				Delta.Pitch = 0.0f;
-				InputDirection = Delta.UnrotateVector(SourcePawn->GetLastMovementInputVector());
+				InputDirection = SourcePawn->GetLastMovementInputVector(); //Delta.UnrotateVector(SourcePawn->GetLastMovementInputVector());
 				
 				FVector UnitDirection = UKismetMathLibrary::GetDirectionUnitVector(SourcePawn->GetActorLocation(), HitActor->GetActorLocation());
 				float InputToTargetDotProduct = UKismetMathLibrary::Dot_VectorVector(InputDirection.GetSafeNormal(), UnitDirection);

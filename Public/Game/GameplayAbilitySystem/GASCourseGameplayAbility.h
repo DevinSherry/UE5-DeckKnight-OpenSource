@@ -3,16 +3,22 @@
 #pragma once
 
 #include "Abilities/GameplayAbility.h"
-#include "Game/Character/Player/GASCoursePlayerCharacter.h"
-#include "Game/Character/Player/GASCoursePlayerController.h"
+//#include "Game/Character/Player/GASCoursePlayerCharacter.h"
+//#include "Game/Character/Player/GASCoursePlayerController.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "GASCourseGameplayAbility.generated.h"
+
+class AGASCoursePlayerCharacter;
+class AGASCoursePlayerController;
 
 /*
  * Delegate fired when ability is committed, returns whether commit was successful
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FGASCourseAbilityCommitSignature, bool, CommitAbility);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FGASCourseAbilityClearedSignature, UGameplayAbility*, AbilityCleared);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGASCourseAbilityCooldownCommitSignature);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGASCourseAbilityDurationRemoved);
 
 DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_GameplayAbility, Log, All);
 
@@ -39,11 +45,8 @@ enum class EGASCourseAbilityType : uint8
 {
 	
 	AimCast,
-	
 	Duration,
-	
 	Instant,
-
 	Stack
 };
 
@@ -56,13 +59,27 @@ UENUM(BlueprintType)
 enum class EGASCourseAbilitySlotType : uint8
 {
 	
-	PrimarySlot,
-	
-	SecondarySlot,
-	
-	UltimateSlot,
+	ActiveAbilitySlot,
+	EvasiveAbilitySlot,
+	PassiveAbilitySlot,
+	InstantAbilitySlot,
+	EmptySlot
+};
 
-	EmptySlot,
+
+USTRUCT(BlueprintType)
+struct FGrantedCardAbilityConfig
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Ability Configuration")
+	EGASCourseAbilityType AbilityType = EGASCourseAbilityType::Instant;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Ability Configuration")
+	EGASCourseAbilitySlotType SlotType = EGASCourseAbilitySlotType::EmptySlot;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Ability Configuration")
+	TSubclassOf<UGameplayEffect> DurationEffect;
 };
 
 /**
@@ -84,6 +101,9 @@ public:
 
 	UPROPERTY(BlueprintAssignable)
 	FGASCourseAbilityCommitSignature OnAbilityCommitDelegate;
+	
+	UPROPERTY(BlueprintAssignable)
+	FGASCourseAbilityClearedSignature OnAbilityClearedDelegate;
 
 	UFUNCTION(BlueprintPure, Category = "GASCourse|Ability|Tags")
 	void GetAbilityCooldownTags(FGameplayTagContainer& CooldownTags) const;
@@ -138,7 +158,22 @@ public:
 	 *
 	 * @return The ability slot type (EGASCourseAbilitySlotType) of the ability.
 	 */
-	EGASCourseAbilitySlotType GetAbilitySlotType() const {return AbilitySlotType; }
+	EGASCourseAbilitySlotType GetAbilitySlot() const {return AbilitySlotType; }
+	void SetAbilitySlot(EGASCourseAbilitySlotType InAbilitySlotType) { AbilitySlotType = InAbilitySlotType; }
+	
+	EGASCourseAbilityType GetAbilityType() const {return AbilityType; }
+	void SetAbilityType(EGASCourseAbilityType InAbilityType) { AbilityType = InAbilityType; }
+
+	/**
+	 * SetAbilityIcon
+	 *
+	 * Updates the icon representing a specific ability.
+	 *
+	 * @param InAbilityIcon The name of the ability whose icon is being set.
+	 * @param iconPath The file path to the new icon image.
+	 */
+	void SetAbilityIcon(TSoftObjectPtr<UTexture2D> InAbilityIcon) { AbilityIcon = InAbilityIcon; }
+	TSoftObjectPtr<UTexture2D> GetAbilityIcon() const { return AbilityIcon; }
 
 	void TryActivateAbilityOnSpawn(const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilitySpec& Spec) const;
 
@@ -155,6 +190,76 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "GASCourse|Ability|Input", Meta = (DisplayName = "Get Input Direction"))
 	virtual FVector GetInputDirection() const;
+	
+public:
+	
+	//Callback for when applied duration effect is removed. Ability must be of type EGASCourseAbilityType::Duration
+	UFUNCTION()
+	void DurationEffectRemoved(const FGameplayEffectRemovalInfo& GameplayEffectRemovalInfo);
+
+	/**
+	 * GetDurationGameplayEffect
+	 *
+	 * Retrieves the gameplay effect class associated with the duration effect.
+	 *
+	 * @return The TSubclassOf object representing the duration gameplay effect.
+	 */
+	UFUNCTION()
+	FORCEINLINE TSubclassOf<UGameplayEffect> GetDurationGameplayEffect() const {return DurationEffect;}
+
+	/**
+	 * SetDurationGameplayEffect
+	 *
+	 * Sets the duration gameplay effect for this ability.
+	 *
+	 * @param InDurationEffect The gameplay effect class to set as the duration effect.
+	 */
+	UFUNCTION()
+	FORCEINLINE void SetDurationGameplayEffect(TSubclassOf<UGameplayEffect> InDurationEffect) {DurationEffect = InDurationEffect;}
+	
+protected:
+	
+	//The duration effect to be applied, dictates how long the ability will last for.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
+	TSubclassOf<UGameplayEffect> DurationEffect;
+
+	/*Auto apply the duration effect on ability activation, otherwise use function Apply Duration Effect**/
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
+	bool bAutoApplyDurationEffect;
+
+	/*Manually apply either class duration effect, or custom duration effect**/
+	UFUNCTION(BlueprintCallable, Category = "GASCourse|Ability|Duration")
+	UPARAM(DisplayName= "bDurationEffectApplied")
+	bool ApplyDurationEffect();
+
+	UFUNCTION()
+	void OnAbilityInputPressed(float InTimeWaited);
+
+	/**
+ * @brief Should the ability automatically commit cooldown when the duration effect ends?
+ */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
+	bool bAutoCommitCooldownOnDurationEnd;
+
+	/**
+ * @brief Should the ability automatically end when the duration effect ends?
+ */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
+	bool bAutoEndAbilityOnDurationEnd;
+
+	/**
+	 * @brief Indicates whether the ability should be canceled upon reactivation.
+	 *
+	 * If this flag is set to true, the ability will be canceled if it is reactivated while it is still active. By default, this flag is true, meaning the ability will continue to run even
+	 * if it is reactivated.
+	 *
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Duration", meta=(EditCondition="AbilityType==EGASCourseAbilityType::Duration", EditConditionHides))
+	bool bCancelAbilityOnReactivation;
+	
+private:
+	
+	FActiveGameplayEffectHandle DurationEffectHandle;
 
 protected:
 
@@ -193,6 +298,38 @@ protected:
 	UFUNCTION(BlueprintPure, Category = "GASCourse|Ability|Tags")
 	void GetStackedAbilityDurationTags(FGameplayTagContainer& DurationTags) const;
 
+	/**
+	 * ApplyAbilityParamsFromSourceObject
+	 *
+	 * Copies and applies ability parameter values from the source object associated with the provided
+	 * gameplay ability spec to this ability instance. Utilizes property reflection to transfer values
+	 * from the source object to matching properties defined on this ability's class.
+	 *
+	 * @param Spec The ability spec containing the source object with parameter data to be applied.
+	 */
+	UFUNCTION()
+	void ApplyAbilityParamsFromSourceObject(const FGameplayAbilitySpec& Spec);
+
+	/**
+	 * ConfigureAbilityFromGrantedSpec
+	 *
+	 * Configures the ability instance based on the provided gameplay ability specification.
+	 *
+	 * @param Spec The gameplay ability specification used to initialize and configure the ability.
+	 */
+	UFUNCTION()
+	void ConfigureAbilityFromGrantedSpec(const FGameplayAbilitySpec& Spec);
+
+	/**
+	 * ConfigureAbilityDuration
+	 *
+	 * Configures duration-related behavior for the ability using the specified card ability configuration.
+	 *
+	 * @param CardAbilityConfig The configuration structure containing the duration effect and related settings.
+	 */
+	UFUNCTION()
+	void ConfigureAbilityDuration(const FGrantedCardAbilityConfig& CardAbilityConfig);
+
 protected:
 
 	// Defines how this ability is meant to activate.
@@ -206,7 +343,10 @@ protected:
 	// Defines how this ability is meant to activate.
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Activation")
 	EGASCourseAbilitySlotType AbilitySlotType;
-
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GASCourse|Ability|Icon")
+	TSoftObjectPtr<UTexture2D> AbilityIcon;
+	
 	/**
 	 * @brief Should the ability automatically commit when activated? If false, blueprint or child classes must call CommitAbility() manually.
 	 */
@@ -298,5 +438,9 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
 	void OnHitReceived_Event(const FHitContext& HitContext);
+	
+private:
+	
+	FDelegateHandle DurationEffectRemovedDelegateHandle;
 	
 };

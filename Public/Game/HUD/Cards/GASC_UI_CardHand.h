@@ -4,6 +4,7 @@
 
 #include "GASC_UI_CardTemplate.h"
 #include "Blueprint/UserWidget.h"
+#include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
 #include "GASC_UI_CardHand.generated.h"
 
 /**
@@ -130,6 +131,9 @@ public:
 	void AddCardToHand_WithData(UCardDataAsset* CardData);
 	
 	UFUNCTION(BlueprintCallable)
+	void AddCardInstanceToHand(FCardInstance CardInstanceData);
+	
+	UFUNCTION(BlueprintCallable)
 	void RemoveCardFromHand();
 	
 	UFUNCTION(BlueprintCallable)
@@ -142,4 +146,46 @@ protected:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Card Hand")
 	int32 SelectedCardIndex;
+
+	/**
+	 * @property DeckManager
+	 * @brief Manages and interacts with the deck system for a character.
+	 *
+	 * DeckManager is a component responsible for handling operations related to the deck of cards associated with a character.
+	 * It provides functionalities to manage active cards, discarded cards, and the player's hand, ensuring seamless integration
+	 * with gameplay mechanics and UI systems. This property serves as the primary interface for the character to interact
+	 * with card-based functionalities.
+	 *
+	 * Responsibilities of DeckManager include:
+	 * - Managing the lifecycle of the active deck, discard pile, and player's hand.
+	 * - Facilitating card transitions between different states (e.g., from deck to hand or hand to discard).
+	 * - Supporting extensions for gameplay logic, such as reshuffling, interactions, and deck customization.
+	 *
+	 * This property can be modified within the editor and accessed in Blueprints for flexibility and integration with the
+	 * game's systems. It is categorized under "Character|Components" for organizational purposes and encapsulates private
+	 * access control to comply with encapsulation principles.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character|Components", meta = (AllowPrivateAccess = "true"))
+	UDeckManagerComponent* DeckManager = nullptr;
+
+	/**
+	 * @property AbilitySystemComponent
+	 * @brief Represents the core ability system component used for managing abilities and gameplay effects in a character.
+	 *
+	 * The AbilitySystemComponent is responsible for handling the application, execution, and management of gameplay abilities
+	 * and effects in the context of the character it is attached to. It serves as the primary interface for gameplay ability
+	 * system interactions, enabling functionality such as attribute management, gameplay tag handling, and ability activations.
+	 *
+	 * Key responsibilities of this component include:
+	 * - Managing the lifecycle of gameplay abilities, including activation, cooldowns, and cost calculations.
+	 * - Handling gameplay effects, such as buffs, debuffs, temporary attribute changes, and persistent health or mana modifications.
+	 * - Supporting gameplay tags for complex rules, such as blocking or requiring specific conditions for ability execution.
+	 * - Providing an extensible framework for integrating additional gameplay-related logic.
+	 *
+	 * This property is categorized under "Character|Components" for organizational purposes in the editor. It is marked as private
+	 * access to ensure encapsulation and is editable and accessible in Blueprints for additional customization. The component is expected
+	 * to integrate with the overall Gameplay Ability System (GAS) provided by Unreal Engine.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Character|Components", meta = (AllowPrivateAccess = "true"))
+	UGASCourseAbilitySystemComponent* AbilitySystemComponent = nullptr;
 };

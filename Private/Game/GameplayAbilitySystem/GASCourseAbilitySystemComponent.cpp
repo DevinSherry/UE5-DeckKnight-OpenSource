@@ -6,10 +6,9 @@
 #include "Game/GameplayAbilitySystem/GASAbilityTagRelationshipMapping.h"
 #include "Game/Animation/GASCourseAnimInstance.h"
 #include "Game/GameplayAbilitySystem/GASCourseGameplayAbility.h"
-#include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "AbilitySystemBlueprintLibrary.h"
-#include "AbilitySystemBlueprintLibrary.h"
+#include "GASCourse/GASCourseCharacter.h"
 
 UGASCourseAbilitySystemComponent::UGASCourseAbilitySystemComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

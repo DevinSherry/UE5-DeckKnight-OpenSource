@@ -3,6 +3,7 @@
 
 #include "Game/GameplayAbilitySystem/GameplayAbilities/Aimcast/GASCourseAimcastGameplayAbility.h"
 #include "AbilitySystemBlueprintLibrary.h"
+#include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 
 UGASCourseAimcastGameplayAbility::UGASCourseAimcastGameplayAbility(const FObjectInitializer& ObjectInitializer)
 {

@@ -7,10 +7,14 @@
 #include "Tasks/Task.h"
 #include "InputAction.h"
 #include "Game/Data/Camera/GASCoursePlayerCameraSettings.h"
+#include "Game/Input/GASC_InputAbilityChordedData.h"
 #include "GASCoursePlayerCharacter.generated.h"
 
 /**
- * Class representing the player character in the game.
+ * The AGASCoursePlayerCharacter class represents a player character
+ * implementation for a game, utilizing the Gameplay Ability System (GAS).
+ * This class serves as the core character that interacts with abilities,
+ * attributes, and the game's interaction logic.
  */
 UCLASS()
 class GASCOURSE_API AGASCoursePlayerCharacter : public AGASCourseCharacter
@@ -40,6 +44,9 @@ class GASCOURSE_API AGASCoursePlayerCharacter : public AGASCourseCharacter
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UGASCourseInputConfig> InputConfig;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	UGASC_InputAbilityChordedData* AbilityChordData = nullptr;
 
 public:
 
@@ -63,17 +70,41 @@ public:
 
 	void UpdateCharacterAnimLayer(TSubclassOf<UAnimInstance> NewAnimLayer) const;
 
+	/**
+	 * Binds a set of ability input actions to a chorded input configuration.
+	 *
+	 * @param inputMappingName The name of the input mapping to apply.
+	 * @param abilityBindings A collection of ability bindings to be associated with the input mapping.
+	 * @param overrideExisting Indicates whether existing input mappings should be overridden.
+	 */
+	UFUNCTION()
+	void ApplyAbilityChordedInputMapping(UGASCourseEnhancedInputComponent* EnhancedInputComponent);
+
+	/**
+	 * Removes a chorded input mapping for an ability, effectively disabling the linked ability input action.
+	 *
+	 * This function is used to unbind and remove input mappings associated with abilities
+	 * that require specific chorded inputs. Removing such mappings ensures the input
+	 * combination no longer triggers the ability.
+	 *
+	 * Typically utilized when deactivating or unbinding an ability from the input system.
+	 */
+	UFUNCTION()
+	void RemoveAbilityChordedInputMapping();
+
 protected:
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	//Add GASCourseAbilitySystemComponent on PossessedBy
 	virtual void PossessedBy(AController* NewController) override;
+	virtual void UnPossessed() override;
 
 	virtual void OnRep_PlayerState() override;
 	virtual void OnRep_Controller() override;
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 	
 	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
@@ -90,4 +121,8 @@ protected:
 	void InitializeCamera();
 
 	virtual bool SimulateInputActionFromBuffer(FGameplayTag InputTag) override;
+	
+private:
+	
+	bool bAbilityChordedBound = false;
 };

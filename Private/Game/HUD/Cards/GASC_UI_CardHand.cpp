@@ -7,6 +7,7 @@
 #include "Components/CanvasPanel.h"
 #include "Game/HUD/Cards/GASC_UI_CardTemplate.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Game/Character/Player/GASCoursePlayerState.h"
 
 void UGASC_UI_CardHand::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
@@ -16,13 +17,13 @@ void UGASC_UI_CardHand::NativeTick(const FGeometry& MyGeometry, float InDeltaTim
 
 void UGASC_UI_CardHand::NativeConstruct()
 {
-	Super::NativeConstruct();
-	/*
-	for (int32 i = 0; i < DebugForceNumberofCards; ++i)
+	if (AGASCoursePlayerState* PS = GetOwningPlayer()->GetPlayerState<AGASCoursePlayerState>())
 	{
-		AddCardToHand();
+		AbilitySystemComponent = PS->GetAbilitySystemComponent();
+		DeckManager = PS->GetDeckManagerComponent();
 	}
-	*/
+	
+	Super::NativeConstruct();
 }
 
 void UGASC_UI_CardHand::UpdateCardPositions(float DeltaTime)
@@ -288,7 +289,6 @@ void UGASC_UI_CardHand::AddCardToHand_WithData(UCardDataAsset* CardData)
 			CardSlot->SetAutoSize(true);
 			CardSlot->SetAlignment(FVector2D(0.0f, 0.5f));
 		}
-		NewCard->AddToViewport();
 		CardsInHand.Add(NewCard);
 		uint32 index = CardsInHand.Num();
 		NewCard->CardData = CardData;
@@ -302,7 +302,39 @@ void UGASC_UI_CardHand::AddCardToHand_WithData(UCardDataAsset* CardData)
 			UWidgetLayoutLibrary::SlotAsCanvasSlot(NewCard)->SetZOrder(CardsInHand.Num() + 1); 
 		}
 		
-		UE_LOGFMT(LogTemp, Warning, "Index: {0}", index);
+		AddCardToHand_Event();
+	}
+}
+
+void UGASC_UI_CardHand::AddCardInstanceToHand(FCardInstance CardInstanceData)
+{
+	SCOPED_NAMED_EVENT(AddCardToHand, FColor::Blue);
+	if (!CardTemplateClass)
+	{
+		UE_LOGFMT(LogTemp, Error, "CardTemplateClass is not set in UGASC_UI_CardHand");
+		return;
+	}
+	if (UGASC_UI_CardTemplate* NewCard = CreateWidget<UGASC_UI_CardTemplate>(GetOwningPlayer(), CardTemplateClass))
+	{
+		if (!CardHandCanvas->HasChild(NewCard))
+		{
+			UCanvasPanelSlot* CardSlot = CardHandCanvas->AddChildToCanvas(NewCard);
+			CardSlot->SetAutoSize(true);
+			CardSlot->SetAlignment(FVector2D(0.0f, 0.5f));
+		}
+		CardsInHand.Add(NewCard);
+		uint32 index = CardsInHand.Num();
+		NewCard->CardInstance = CardInstanceData;
+		NewCard->InstantiateCardData();
+		if (CardsInHand.Num() == 1)
+		{
+			UWidgetLayoutLibrary::SlotAsCanvasSlot(NewCard)->SetZOrder(100);
+		}
+		else
+		{
+			UWidgetLayoutLibrary::SlotAsCanvasSlot(NewCard)->SetZOrder(CardsInHand.Num() + 1); 
+		}
+		
 		AddCardToHand_Event();
 	}
 }
