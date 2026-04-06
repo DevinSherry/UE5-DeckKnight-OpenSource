@@ -4,6 +4,16 @@
 #include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
+namespace GASCourse_DeckManagerComponentCVars
+{
+	static bool bIgnoreCardCosts = false;
+	FAutoConsoleVariableRef CvarIgnoreCardCost(
+		TEXT("GASCourseDebug.DeckManagerComponent.IgnoreCardCosts"),
+		bIgnoreCardCosts,
+		TEXT("Ignore costs of cards. Card resource is not spent, and you can activate any card, regardless of cost (Enabled: true, Disabled: false)"));
+	
+}
+
 // Sets default values for this component's properties
 UDeckManagerComponent::UDeckManagerComponent()
 {
@@ -14,6 +24,15 @@ UDeckManagerComponent::UDeckManagerComponent()
 	// ...
 }
 
+bool UDeckManagerComponent::DebugIgnoreCardCostEnabled()
+{
+	return GASCourse_DeckManagerComponentCVars::bIgnoreCardCosts;
+}
+
+void UDeckManagerComponent::SetDebugIgnoreCardCost(bool bIgnoreCardCost)
+{
+	GASCourse_DeckManagerComponentCVars::bIgnoreCardCosts = bIgnoreCardCost;
+}
 
 // Called when the game starts
 void UDeckManagerComponent::BeginPlay()
@@ -33,7 +52,7 @@ bool UDeckManagerComponent::ActivateCardByInstanceID(const FGuid& CardInstanceID
 	
 	if (!Card)
 	{
-		UE_LOGFMT(LogTemp, Warning, "Attempted to activate card with instance ID %s, but it was not found in the current hand.", *CardInstanceID.ToString());
+		UE_LOGFMT(LogTemp, Warning, "Attempted to activate card with instance ID {0}}, but it was not found in the current hand.", *CardInstanceID.ToString());
 		return false;
 	}
 	

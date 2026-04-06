@@ -44,6 +44,12 @@ class GASCOURSE_API UDeckManagerComponent : public UActorComponent
 public:	
 	// Sets default values for this component's properties
 	UDeckManagerComponent();
+	
+	UFUNCTION(BlueprintPure, Category="Deck|Debug")
+	static bool DebugIgnoreCardCostEnabled();
+	
+	UFUNCTION(BlueprintCallable, Category="Deck|Debug")
+	static void SetDebugIgnoreCardCost(bool bIgnoreCardCost);
 
 protected:
 	

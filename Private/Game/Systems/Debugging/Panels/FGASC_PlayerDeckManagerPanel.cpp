@@ -12,6 +12,9 @@ TSoftObjectPtr<UCardDataAsset> FGASC_PlayerDeckManagerPanel::SelectedCardAsset;
 UDeckManagerComponent* FGASC_PlayerDeckManagerPanel::DeckManagerComponent = nullptr;
 TMap<TWeakObjectPtr<UTexture>, FImGuiTextureHandle> FGASC_PlayerDeckManagerPanel::TextureHandles;
 TMap<TWeakObjectPtr<UBaseCardGameplayAbilitySet>, float> FGASC_PlayerDeckManagerPanel::CardLevelOverrides;
+bool FGASC_PlayerDeckManagerPanel::bFilterForEmptyOrMissingCardData = false;
+bool FGASC_PlayerDeckManagerPanel::bDebugIgnoreCardCosts = false;
+int FGASC_PlayerDeckManagerPanel::MissingCardInfoFilter = 0;
 
 FImGuiTextureHandle FGASC_PlayerDeckManagerPanel::GetOrRegisterTexture(UTexture* Texture)
 {
@@ -102,6 +105,7 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 			}
 
 			DeckManagerComponent = PlayerState->GetDeckManagerComponent();
+			bDebugIgnoreCardCosts = DeckManagerComponent->DebugIgnoreCardCostEnabled();
 		}
 	}
 	
@@ -116,7 +120,49 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 		}
 	}
 	
-	if (ImGui::BeginTable("All Cards in Game Table", 4, 
+	    // ==================== OPTIONS TABLE ====================
+    FString OptionsTableId = TEXT("Options##Table");
+    auto OptionsTableIdANSI = StringCast<ANSICHAR>(*OptionsTableId);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(4.0f, 8.0f));
+    if (ImGui::BeginTable(OptionsTableIdANSI.Get(), 2,
+        ImGuiTableFlags_SizingFixedFit |
+        ImGuiTableFlags_Resizable |
+        ImGuiTableFlags_BordersV |
+        ImGuiTableFlags_Reorderable |
+        ImGuiTableFlags_Hideable |
+        ImGuiTableFlags_SizingStretchSame |
+        ImGuiTableColumnFlags_WidthStretch |
+        ImGuiTableFlags_BordersH))
+    {
+    	ImGui::TableSetupColumn("Debug Options");
+    	ImGui::TableSetupColumn("Search & Filters");
+        ImGui::TableHeadersRow();
+
+        // -------- Debug Selection --------
+        ImGui::TableNextColumn();
+    	ImGui::Text("Debug Options");
+    	if (ImGui::Checkbox("Ignore Card Costs", &bDebugIgnoreCardCosts))
+    	{
+    		if (DeckManagerComponent)
+    		{
+    			DeckManagerComponent->SetDebugIgnoreCardCost(bDebugIgnoreCardCosts);
+    		}
+    	}
+
+        // -------- Search & Filters --------
+        ImGui::TableNextColumn();
+    	//ImGui::Checkbox("Filter for Empty or Missing Card Data", &bFilterForEmptyOrMissingCardData);
+    	ImGui::Combo("Missing Card Info Filter", &MissingCardInfoFilter, "ShowAll\0MissingCardName\0MissingCardDescription\0MissingCardType\0MissingCardIcon\0MissingAbilitySet\0");
+        ImGui::EndTable();
+    }
+    ImGui::PopStyleVar();
+	
+	FString AllCardsTableID = TEXT("All Cards##Table");
+	auto AllCardsTableIdANSI = StringCast<ANSICHAR>(*AllCardsTableID);
+	
+	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(4.0f, 8.0f));
+	if (ImGui::BeginTable(AllCardsTableIdANSI.Get(), 4, 
 		ImGuiTableFlags_SizingFixedFit |
 		ImGuiTableFlags_ScrollY |
 		ImGuiTableFlags_RowBg |
@@ -128,6 +174,11 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 		ImGui::TableSetupColumn("Card Ability Info");
 		ImGui::TableSetupColumn("Actions");
 		ImGui::TableHeadersRow();
+
+		ImVec4 green = ImVec4(0, 1, 0, 1);
+		ImVec4 red   = ImVec4(1, 0, 0, 1);
+		ImVec4 white = ImVec4(1, 1, 1, 1);
+		ImVec4 yellow = ImVec4(1, 1, 0, 1);
 		
 		for (int32 i = 0; i < CachedCardDataAssets.Num(); ++i)
 		{
@@ -137,6 +188,36 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 			SelectedCardAsset = TSoftObjectPtr<UCardDataAsset>(AssetData.ToSoftObjectPath());
 			if (UCardDataAsset* LoadedCard = SelectedCardAsset.LoadSynchronous())
 			{
+
+				bool bShouldBeFiltered = LoadedCard->CardData.CardInfo.CardName.IsEmpty() || LoadedCard->CardData.CardInfo.CardDescription.IsEmpty()
+				|| LoadedCard->CardData.CardInfo.CardType == EmptyCard || LoadedCard->CardData.CardInfo.CardIcon.IsNull();
+				
+				if (bFilterForEmptyOrMissingCardData && !bShouldBeFiltered)
+					continue;
+				
+				switch (MissingCardInfoFilter)
+				{
+				case 0:
+					break;
+				case 1:
+					if (!LoadedCard->CardData.CardInfo.CardName.IsEmpty()) continue;
+					break;
+				case 2:
+					if (!LoadedCard->CardData.CardInfo.CardDescription.IsEmpty()) continue;
+					break;
+				case 3:
+					if (LoadedCard->CardData.CardInfo.CardType != EmptyCard) continue;
+					break;
+				case 4:
+					if (!LoadedCard->CardData.CardInfo.CardIcon.IsNull()) continue;
+					break;
+				case 5:
+					if (LoadedCard->CardData.CardAbilitySet->IsValidLowLevel()) continue;
+				default:
+					break;
+				}
+					
+				
 				ImGui::PushID(i); // ✅ stable unique ID
 				ImGui::TableNextRow();
 			
@@ -146,20 +227,37 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 				const FString CardDataDirectoryPath = AssetData.PackagePath.ToString();
 				ImGui::Text("%s", TCHAR_TO_ANSI(*CardDataAssetName));
 				ImGui::Text("%s", TCHAR_TO_ANSI(*CardDataDirectoryPath));
-			
+				
+#if WITH_EDITOR
+				OpenAsset(LoadedCard);
+#endif
+				
 				ImGui::TableNextColumn();
 				
-				const FString CardName = LoadedCard->CardData.CardInfo.CardName.ToString().IsEmpty() ? "Empty" :
+				ImVec4 CardNameTextColor = LoadedCard->CardData.CardInfo.CardName.IsEmpty() ? red : yellow;
+				const FString CardName = LoadedCard->CardData.CardInfo.CardName.ToString().IsEmpty() ? "Missing Card Name!" :
 				LoadedCard->CardData.CardInfo.CardName.ToString();
-				ImGui::Text("%s", TCHAR_TO_ANSI(*CardName));
 				
-				const FString CardDescription = LoadedCard->CardData.CardInfo.CardDescription.ToString().IsEmpty() ? "Empty" :
+				ImGui::Text("Card Name:");
+				ImGui::SameLine();
+				ImGui::TextColored(CardNameTextColor, "%s", TCHAR_TO_ANSI(*CardName));
+				ImGui::Separator();
+				
+				ImVec4 CardDescriptionTextColor = LoadedCard->CardData.CardInfo.CardDescription.ToString().IsEmpty() ? red : yellow;
+				const FString CardDescription = LoadedCard->CardData.CardInfo.CardDescription.ToString().IsEmpty() ? "Missing Card Description!" :
 				LoadedCard->CardData.CardInfo.CardDescription.ToString();
-				ImGui::Text("%s", TCHAR_TO_ANSI(*CardDescription));
+				ImGui::Text("Card Description:");
+				ImGui::SameLine();
+				ImGui::TextColored(CardDescriptionTextColor, "%s", TCHAR_TO_ANSI(*CardDescription));
+				ImGui::Separator();
 				
-				const FString CardSlotType =
+				ImVec4 CardTypeTextColor = LoadedCard->CardData.CardInfo.CardType == ECardType::EmptyCard ? red : yellow;
+				const FString CardType =
 				StaticEnum<ECardType>()->GetNameStringByValue((int64)LoadedCard->CardData.CardInfo.CardType);
-				ImGui::Text("%s", TCHAR_TO_ANSI(*CardSlotType));
+				ImGui::Text("Card Slot Type:");
+				ImGui::SameLine();
+				ImGui::TextColored(CardTypeTextColor, "%s", TCHAR_TO_ANSI(*CardType));
+				ImGui::Separator();
 				
 				static UTexture2D* DefaultIcon = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/DefaultTexture.DefaultTexture"));
 				UTexture2D* IconToDraw = nullptr;
@@ -180,16 +278,23 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 
 					// Most likely: you can pass Handle directly as ImTextureID:
 					ImGui::Image(Handle, ImVec2(64, 64));
+#if WITH_EDITOR
+					if (ImGui::IsItemClicked())
+					{
+						OpenAsset(IconToDraw, true);
+					}
+#endif
 				}
 				
 				ImGui::TableNextColumn();
 				
+				ImGui::Text("Ability Set:");
 				if (UBaseCardGameplayAbilitySet* CardAbilitySet = LoadedCard->CardData.CardAbilitySet)
 				{
 					ImGui::Text("Granted Gameplay Abilities:");
 					if (CardAbilitySet->GrantedGameplayAbilities.Num() == 0)
 					{
-						ImGui::Text("%s has no granted gameplay abilities.",TCHAR_TO_ANSI(*CardName));
+						ImGui::Text("%s has no granted gameplay abilities.",TCHAR_TO_ANSI(*CardAbilitySet->GetName()));
 					}
 					for (const FGASCourseCardAbilitySet_GameplayAbility& AbilityEntry : CardAbilitySet->GrantedGameplayAbilities)
 					{
@@ -198,16 +303,21 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 						{
 							const FString AbilityName = LoadedAbility->GetName();
 							ImGui::Text("%s", TCHAR_TO_ANSI(*AbilityName));
-							
+#if WITH_EDITOR
+							OpenBlueprintAsset(Cast<UBlueprint>(LoadedAbility->GetClass()->ClassGeneratedBy));
+#endif
 							const FString AbilityType =
 							StaticEnum<EGASCourseAbilitySlotType>()->GetNameStringByValue((int64)AbilityEntry.AbilitySlotType);
-							ImGui::Text("%s", TCHAR_TO_ANSI(*AbilityType));
+							ImGui::Text("Ability Slot Type: %s", TCHAR_TO_ANSI(*AbilityType));
 						}
 					}
+					
+					ImGui::Separator();
+					
 					ImGui::Text("Granted Gameplay Effects:");
 					if (CardAbilitySet->GrantedGameplayEffects.Num() == 0)
 					{
-						ImGui::Text("%s has no granted gameplay effects.",TCHAR_TO_ANSI(*CardName));
+						ImGui::Text("%s has no granted gameplay effects.",TCHAR_TO_ANSI(*CardAbilitySet->GetName()));
 					}
 					for (const FGASCourseCardAbilitySet_GameplayEffect& GameplayEffectEntry : CardAbilitySet->GrantedGameplayEffects)
 					{
@@ -216,6 +326,9 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 						{
 							const FString GameplayEffectName = LoadedGameplayEffect->GetName();
 							ImGui::Text("%s", TCHAR_TO_ANSI(*GameplayEffectName));
+#if WITH_EDITOR
+							OpenBlueprintAsset(Cast<UBlueprint>(LoadedGameplayEffect->GetClass()->ClassGeneratedBy));
+#endif
 						}
 					}
 				}
@@ -244,10 +357,9 @@ void FGASC_PlayerDeckManagerPanel::DrawDebugPanel(bool& bOpen)
 				ImGui::PopID();
 			}
 		}
-		
 		ImGui::EndTable();
 	}
-	
+	ImGui::PopStyleVar();
 	ImGui::End();
 }
 
@@ -293,3 +405,59 @@ TArray<FAssetData> FGASC_PlayerDeckManagerPanel::CacheCardAssets()
 	return CardAssets;
 }
 
+#if WITH_EDITOR
+void FGASC_PlayerDeckManagerPanel::OpenAsset(UObject* AssetObject, bool bForceOpen)
+{
+	if (GEditor)
+	{
+		if (bForceOpen)
+		{
+			TArray<UObject*> ObjectsToSync;
+			ObjectsToSync.Add(AssetObject);
+			GEditor->SyncBrowserToObjects(ObjectsToSync, true);
+									
+			if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+			{
+				AssetEditorSubsystem->OpenEditorForAsset(AssetObject);
+			}
+		}
+		else
+		{
+			FString Label = FString::Printf(TEXT("Open##%s:BlueprintObject"), *AssetObject->GetName());
+			//ImGui::Text("%s", TCHAR_TO_ANSI(*CardDataDirectoryPath));
+			if (ImGui::Button(TCHAR_TO_UTF8(*Label)))
+			{
+				TArray<UObject*> ObjectsToSync;
+				ObjectsToSync.Add(AssetObject);
+				GEditor->SyncBrowserToObjects(ObjectsToSync, true);
+									
+				if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+				{
+					AssetEditorSubsystem->OpenEditorForAsset(AssetObject);
+				}
+			}
+		}
+	}
+}
+
+
+
+void FGASC_PlayerDeckManagerPanel::OpenBlueprintAsset(UObject* BlueprintObject)
+{
+	if (GEditor)
+	{
+		FString Label = FString::Printf(TEXT("Open##%s:BlueprintObject"), *BlueprintObject->GetName());
+		if (ImGui::Button(TCHAR_TO_UTF8(*Label)))
+		{
+			TArray<UObject*> ObjectsToSync;
+			ObjectsToSync.Add(BlueprintObject);
+			GEditor->SyncBrowserToObjects(ObjectsToSync, true);
+									
+			if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+			{
+				AssetEditorSubsystem->OpenEditorForAsset(BlueprintObject);
+			}
+		}
+	}
+}
+#endif

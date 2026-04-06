@@ -2,180 +2,170 @@
 
 #pragma once
 
-#include "EnhancedInputComponent.h"
 #include "GameplayTagContainer.h"
-#include "GASC_InputBuffer_Settings.h"
-#include "InputAction.h"
 #include "Components/ActorComponent.h"
-#include "Game/Character/Player/GASCoursePlayerController.h"
 #include "GASC_InputBufferComponent.generated.h"
+
+class UEnhancedInputComponent;
+class UInputAction;
+class UGASC_InputBuffer_Settings;
+class AGASCourseCharacter;
+class AGASCoursePlayerController;
+class UGASCourseAbilitySystemComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_InputBufferComponent, Log, All);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInputBufferOpenedDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInputBufferClosedDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInputBufferFlushedDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FInputBufferConsumedDelegate, UInputAction*, InputAction);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInputBufferOpenedEvent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInputBufferClosedEvent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInputBufferFlushedEvent);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInputBufferedConsumedEvent, UInputAction*, InputAction);
 
-/**
- * UGASC_InputBufferComponent is an actor component designed to manage an input buffer system.
- * This system allows input actions and gameplay tags to be captured, stored, and processed
- * at a later time based on specific conditions, such as the state of the input buffer.
- */
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+USTRUCT()
+struct FGASC_StateTreeEventQueue
+{
+	GENERATED_BODY()
+
+	UPROPERTY(Transient)
+	bool bHasPending = false;
+
+	UPROPERTY(Transient)
+	FGameplayTag PendingTag;
+
+	// Per action, last frame we accepted an event (once-per-action-per-frame)
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<const UInputAction>, uint64> LastAcceptedFrameByAction;
+
+	// One pending event per frame (optional)
+	UPROPERTY(Transient)
+	uint64 LastQueuedFrame = MAX_uint64;
+
+	// Block “opened this frame” if you use animation buffer opening (optional latch)
+	UPROPERTY(Transient)
+	bool bOpenedThisFrame = false;
+
+	void Reset()
+	{
+		bHasPending = false;
+		PendingTag = FGameplayTag(); // invalid/empty [5](https://forums.unrealengine.com/t/why-state-tree-on-state-completed-transition-does-not-work/2630123)
+		LastAcceptedFrameByAction.Reset();
+		LastQueuedFrame = MAX_uint64;
+		bOpenedThisFrame = false;
+	}
+};
+
+
+UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent),Blueprintable)
 class GASCOURSE_API UGASC_InputBufferComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
-	// Sets default values for this component's properties
+public:
 	UGASC_InputBufferComponent();
 
-	//INPUT BUFFER SYSTEM
-
 	virtual void InitializeComponent() override;
-
-	void LoadInputActionsFromSettings();
-
-	void LoadMovementInputActionFromSettings();
-	
-	/**
-	 * OpenInputBuffer method is a BlueprintNativeEvent and BlueprintCallable function that is used to open the input buffer.
-	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	void OpenInputBuffer();
-
-	/**
-	 * CloseInputBuffer method is a BlueprintNativeEvent and BlueprintCallable function that is used to close the input buffer.
-	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	void CloseInputBuffer();
-
-	/**
-	 * Flushes the input buffer by emptying the BufferedInputTags array.
-	 * This method is responsible for clearing any buffered input tags.
-	 *
-	 * @return true if the input buffer was successfully flushed, false otherwise.
-	 */
-	UFUNCTION(BlueprintCallable)
-	bool FlushInputBuffer();
-
-	/** Activates the buffered input ability.
-	 *
-	 *  This method is responsible for activating the buffered input ability based on the first element in the BufferedInputTags array.
-	 *  It checks for the existence of the AbilitySystemComponent and if the BufferedInputTags array is not empty before proceeding.
-	 */
-	UFUNCTION()
-	void ActivateBufferedInputAbility();
-
-	UFUNCTION()
-	void AddInputActionToBuffer(UInputAction* InAction);
-
-	UFUNCTION()
-	void ListenToInputActions();
-
-	UFUNCTION()
-	void SimulateInputAction(const UInputAction* InputAction) const;
-
-	UFUNCTION()
-	void FlushCachedMovementInputAxisValue();
-
-	/**
-	 * Delegate used for broadcasting events when the input buffer is opened.
-	 */
-	FInputBufferOpenedDelegate OnInputBufferOpenedEvent;
-	/**
-	 * Delegate used for broadcasting events when the input buffer is closed.
-	 */
-	FInputBufferClosedDelegate OnInputBufferClosedEvent;
-	/**
-	 * Delegate used for broadcasting events when the input buffer is flushed.
-	 */
-	FInputBufferFlushedDelegate OnInputBufferFlushedEvent;
-	/**
-	 * Delegate for broadcasting events when the input buffer is used.
-	 * The OnInputBufferedUsedEvent delegate is used to notify listeners when input from the buffer is consumed.
-	 */
-	FInputBufferConsumedDelegate OnInputBufferedConsumedEvent;
-
-	/**
-	 * Returns whether the input buffer is currently open or closed.
-	 *
-	 * @return true if the input buffer is open, false if it is closed.
-	 */
-	bool IsInputBufferOpen() const
-	{
-		return bInputBufferOpen;
-	}
-	
-	/**
-	 * Retrieves an array of buffered input actions.
-	 *
-	 * This method returns the current list of input actions that have been buffered for processing.
-	 *
-	 * @return An array of UInputAction pointers representing the buffered input actions.
-	 */
-	TArray<UInputAction*> GetBufferedInputActions() const
-	{
-		return BufferedInputActions;
-	}
-
-	/**
-	 * GetMovementInputAxisValue retrieves the current value of the specified input axis used for movement.
-	 * This method is typically used to query player input for controlling character movement along a specific axis.
-	 *
-	 * @return The current axis value representing player movement input, typically ranging from -1.0 to 1.0.
-	 */
-	UFUNCTION(BlueprintPure, Category = "Input Buffer")
-	FVector2D GetMovementInputAxisValue();
-
-
-protected: 
-	// Called when the game starts
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	
+	void TryInitializeBindings();
+	void RemoveBindings();
 
-private:
-	/**
-	 * Indicates whether the input buffer is currently open or closed.
-	 * Setting this variable to true means the input buffer is open, allowing input to be buffered.
-	 * Setting it to false means the input buffer is closed.
-	 */
-	UPROPERTY(BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	bool bInputBufferOpen = false;
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Input Buffer")
+	void OpenInputBuffer();
+	virtual void OpenInputBuffer_Implementation();
 
-	/**
-	 * BufferedInputActions is an array that holds references to UInputAction objects.
-	 * This property is used to store input actions that are buffered for later use within the Input Buffer System.
-	 * The input actions in this array are processed after being recorded, ensuring actions are performed at appropriate times.
-	 * It is a BlueprintReadOnly property, meaning it can be accessed from Blueprints but cannot be modified directly.
-	 */
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category="Input Buffer")
+	void CloseInputBuffer();
+	virtual void CloseInputBuffer_Implementation();
+
+	UFUNCTION(BlueprintCallable, Category="Input Buffer")
+	bool FlushInputBuffer();
+
+	UFUNCTION(BlueprintCallable, Category="Input Buffer")
+	void ActivateBufferedInputAbility();
+
+	UFUNCTION(BlueprintCallable, Category="Input Buffer")
+	void AddInputActionToBuffer(UInputAction* InAction);
+
+	UFUNCTION(BlueprintCallable, Category="Input Buffer")
+	void FlushCachedMovementInputAxisValue();
+
+	UFUNCTION(BlueprintCallable, Category="Input Buffer")
+	FVector2D GetMovementInputAxisValue();
+
+	UFUNCTION(BlueprintPure, Category="Input Buffer")
+	bool IsInputBufferOpen() const { return bInputBufferOpen; }
+
+	UFUNCTION(BlueprintPure, Category="Input Buffer")
+	TArray<UInputAction*> GetBufferedInputActions() const;
+
+	UPROPERTY(BlueprintAssignable, Category="Input Buffer")
+	FOnInputBufferOpenedEvent OnInputBufferOpenedEvent;
+
+	UPROPERTY(BlueprintAssignable, Category="Input Buffer")
+	FOnInputBufferClosedEvent OnInputBufferClosedEvent;
+
+	UPROPERTY(BlueprintAssignable, Category="Input Buffer")
+	FOnInputBufferFlushedEvent OnInputBufferFlushedEvent;
+
+	UPROPERTY(BlueprintAssignable, Category="Input Buffer")
+	FOnInputBufferedConsumedEvent OnInputBufferedConsumedEvent;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input Buffer", meta=(AssetDir="/Game/GASCourse/Game/Character/Input/Actions/"))
+	TArray<TObjectPtr<UInputAction>> InputActionsToBuffer;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input Buffer",meta=(AssetDir="/Game/GASCourse/Game/Character/Input/Actions/"))
+	UInputAction* MovementInputActionToBuffer = nullptr;
+
+	
+	// Called by input delegates:
+	bool QueueStateTreeEventOncePerActionPerFrame(const UInputAction* Action, const FGameplayTag& Tag);
+
+	// Called by StateTree task Tick:
+	bool ConsumeQueuedStateTreeEvent(FGameplayTag& OutTag);
+
+	void ResetStateTreeEventQueue();
+
+	// If your animation track opens the input buffer on frame 0, call this when opening:
+	void MarkInputBufferOpenedThisFrame();
+
+
+protected:
+	bool ResolveOwnerObjects();
+	void ListenToInputActions();
+	void SimulateInputAction(const UInputAction* InputAction) const;
+
+protected:
+	
 	UPROPERTY(BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	TArray<UInputAction*> BufferedInputActions;
 
-	UPROPERTY()
-	TArray<UInputAction*> InputActionsToConsume;
+	UPROPERTY(Transient)
+	TObjectPtr<AGASCourseCharacter> OwningCharacter = nullptr;
 
-	UPROPERTY()
-	AGASCoursePlayerController* OwningPlayerController = nullptr;
+	UPROPERTY(Transient)
+	TObjectPtr<AGASCoursePlayerController> OwningPlayerController = nullptr;
 
-	UPROPERTY()
-	AGASCourseCharacter* OwningCharacter = nullptr;
+	UPROPERTY(Transient)
+	TObjectPtr<UEnhancedInputComponent> EnhancedInputComponent = nullptr;
 
-	UPROPERTY()
-	const UGASC_InputBuffer_Settings* InputBufferSettings = nullptr;
+	UPROPERTY(Transient)
+	FVector2D MovementInputAxis = FVector2D::ZeroVector;
 
-	UPROPERTY()
-	UEnhancedInputComponent* EnhancedInputComponent = nullptr;
+	UPROPERTY(Transient)
+	FVector2D BufferedMovementInputAxis = FVector2D::ZeroVector;
+
+	TArray<uint32> BindingHandles;
+
+	FString InputBufferComponentName;
+
+	bool bInputBufferOpen = false;
+	bool bBindingsRegistered = false;
 	
-	TArray<const FEnhancedInputActionEventBinding*> Bindings;
+	
+private:
+	
+	UPROPERTY(Transient)
+	FGASC_StateTreeEventQueue StateTreeQueue;
 
-	UPROPERTY()
-	UInputAction* MovementInputAction;
-
-	UPROPERTY()
-	FVector2D MovementInputAxis;
-
-	UPROPERTY()
-	FVector2D BufferedMovementInputAxis;
 };

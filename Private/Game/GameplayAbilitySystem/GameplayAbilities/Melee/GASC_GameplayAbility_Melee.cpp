@@ -2,6 +2,8 @@
 
 
 #include "Game/GameplayAbilitySystem/GameplayAbilities/Melee/GASC_GameplayAbility_Melee.h"
+#include "GASCourse/GASCourseCharacter.h"
+#include "Game/Character/Player/GASCoursePlayerController.h"
 
 void UGASC_GameplayAbility_Melee::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
                                                   const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,

@@ -72,12 +72,28 @@ public:
 	FGameplayAttributeData IncomingCardEnergyXP;
 	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, IncomingCardEnergyXP)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Character Card Resource Attribute Set")
 	FGameplayAttributeData ActiveCardEnergyMultiplier = 1.0f;
 	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, ActiveCardEnergyMultiplier)
 
-	UPROPERTY(BlueprintReadOnly, Category = "Character Health Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Character Card Resource Attribute Set")
 	FGameplayAttributeData OnKillActiveCardEnergyMultiplier = 1.0f;
 	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, OnKillActiveCardEnergyMultiplier)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Character Card Resource Attribute Set")
+	FGameplayAttributeData CardEnergyCostMultiplier = 1.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, CardEnergyCostMultiplier)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Character Card Resource Attribute Set")
+	FGameplayAttributeData CardEnergyCostAdditive = 0.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, CardEnergyCostAdditive)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Character Card Resource Attribute Set")
+	FGameplayAttributeData CardEnergyCostOverride = 1.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, CardEnergyCostOverride)
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Character Card Resource Attribute Set")
+	FGameplayAttributeData IncomingCardEnergyCost = 0.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_CardResourcesAttributeSet, IncomingCardEnergyCost)
 	
 };

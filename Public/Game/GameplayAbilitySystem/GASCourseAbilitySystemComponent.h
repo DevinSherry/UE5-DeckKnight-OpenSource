@@ -8,6 +8,8 @@
 #include "GameplayTagResponseTable/GASCourseStatusEffectTable.h"
 #include "GASCourseAbilitySystemComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FActiveCardAbilityStackCountChanged, int32, NewStackCount, TSubclassOf<UGameplayAbility>, AbilityClass);
+
 /**
  * An interface for proxying replication within the Unreal Gameplay Ability System.
  * This interface is used to facilitate custom replication handling within the context
@@ -91,9 +93,15 @@ public:
 	UFUNCTION(BlueprintPure, meta=(GameplayTagFilter="Input.NativeAction.Ability"))
 	TSubclassOf<UGameplayAbility> GetAbilityFromTaggedInput(FGameplayTag InputTag);
 	
-	UPROPERTY(BlueprintReadOnly)
+	UPROPERTY(BlueprintReadOnly, Category="CardAbilityConfigHandles")
 	TMap<FGameplayAbilitySpecHandle, FGrantedCardAbilityConfig> CardAbilityConfigHandles;
-
+	
+	UFUNCTION(BlueprintCallable, Category="CardAbilityConfigHandles")
+	bool IsActiveAbilityCardAlreadyGranted(TSubclassOf<UGameplayAbility> InAbilityClass) const;
+	
+	UPROPERTY(BlueprintAssignable)
+	FActiveCardAbilityStackCountChanged OnActiveCardAbilityStackCountChanged;
+	
 protected:
 
 	// Handles to abilities that had their input pressed this frame.

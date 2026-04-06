@@ -7,6 +7,10 @@
 #include "Game/GameplayAbilitySystem/GameplayAbilities/Instant/GASCourseInstantGameplayAbility.h"
 #include "GASC_GameplayAbility_Melee.generated.h"
 
+class UMotionWarpingComponent;
+class UGASC_PlayerTargetingComponent;
+class UGASC_InputBufferComponent;
+
 /**
  * UGASC_GameplayAbility_Melee is a gameplay ability class designed for implementing melee-specific behaviors
  * within the Gameplay Ability System (GAS).

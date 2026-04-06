@@ -283,6 +283,11 @@ void UBaseCardGameplayAbilitySet::GiveToAbilitySystem(UAbilitySystemComponent* A
                                                      UObject* SourceObject) const
 {
 	check(ASC);
+	UGASCourseAbilitySystemComponent* OwningASC = Cast<UGASCourseAbilitySystemComponent>(ASC);
+	if (!OwningASC)
+	{
+		return;
+	}
 
 	// Prevent “activate while loading” crashes / partial grants
 	if (!bCardDataLoaded)
@@ -327,12 +332,22 @@ void UBaseCardGameplayAbilitySet::GiveToAbilitySystem(UAbilitySystemComponent* A
 		{
 			continue;
 		}
-
+		
 		// Choose slot tag
 		const FGameplayTag ActiveSlotTag = UGASCourseASCBlueprintLibrary::GetNextAvailableActiveAbilitySlot(ASC);
 
 		FGameplayAbilitySpec Spec(AbilityClass);
 		FGrantedCardAbilityConfig CardAbilityConfig;
+		
+		//Check if spec exists on gameplay ability system (or in CardAbilityConfigHandles)
+		
+		if (OwningASC->FindAbilitySpecFromClass(AbilityClass) || OwningASC->IsActiveAbilityCardAlreadyGranted(AbilityClass))
+		{
+			FGameplayAbilitySpec* FoundCardAbilitySpec = OwningASC->FindAbilitySpecFromClass(AbilityClass);
+			OwningASC->CardAbilityConfigHandles.FindChecked(FoundCardAbilitySpec->Handle).AbilityStackCount++;
+			OwningASC->OnActiveCardAbilityStackCountChanged.Broadcast(OwningASC->CardAbilityConfigHandles.FindChecked(FoundCardAbilitySpec->Handle).AbilityStackCount, AbilityClass);
+			continue;
+		}
 		
 		CardAbilityConfig.SlotType = AbilityEntry.AbilitySlotType;
 		if (CardLevel >= CardDurationProperties.DurationEffectAppliedAtLevelMin && CardDurationProperties.DurationEffect)
@@ -344,11 +359,8 @@ void UBaseCardGameplayAbilitySet::GiveToAbilitySystem(UAbilitySystemComponent* A
 		
 		// Store slot tag in the spec (safe)
 		Spec.GetDynamicSpecSourceTags().AddTag(ActiveSlotTag);
-		if (UGASCourseAbilitySystemComponent* OwningASC = Cast<UGASCourseAbilitySystemComponent>(ASC))
-		{
-			OwningASC->CardAbilityConfigHandles.Add(Spec.Handle, CardAbilityConfig);
-			
-		}
+		OwningASC->CardAbilityConfigHandles.Add(Spec.Handle, CardAbilityConfig);
+		
 		const FGameplayAbilitySpecHandle Handle = ASC->GiveAbility(Spec);
 		if (OutGrantedHandles)
 		{

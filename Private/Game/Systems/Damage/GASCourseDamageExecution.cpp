@@ -10,7 +10,6 @@
 #include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
 #include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
 #include "Game/Systems/Healing/GASCourseHealingExecution.h"
-#include "UObject/ICookInfo.h"
 
 struct GASCourseDamageStatics
 {

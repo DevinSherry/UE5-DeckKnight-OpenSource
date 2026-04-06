@@ -1,144 +1,231 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
-#include "Engine/StreamableManager.h"
-#include "Engine/AssetManager.h"
-#include "Game/Character/Components/InputBuffer/GASC_InputBuffer_Settings.h"
+#include "TimerManager.h"
 #include "Game/Character/Player/GASCoursePlayerController.h"
 #include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 #include "GASCourse/GASCourseCharacter.h"
 
 DEFINE_LOG_CATEGORY(LOG_GASC_InputBufferComponent);
-static FString INPUT_BUFFER_COMPONENT_NAME;
 
-// Sets default values for this component's properties
 UGASC_InputBufferComponent::UGASC_InputBufferComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 	bWantsInitializeComponent = true;
-
-	INPUT_BUFFER_COMPONENT_NAME = GetPathNameSafe(this);
-
-	// ...
 }
 
 void UGASC_InputBufferComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
-	InputBufferSettings = GetDefault<UGASC_InputBuffer_Settings>();
-	if (!InputBufferSettings)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("InputBufferSettings is null!"));
-		return;
-	}
-
-	if(!InputBufferSettings->BufferedInputActions.IsEmpty())
-	{
-		TArray<FSoftObjectPath> AssetPaths;
-		for (const TSoftObjectPtr<UInputAction>& SoftPtr : InputBufferSettings->BufferedInputActions)
-		{
-			if (!SoftPtr.IsValid())
-			{
-				AssetPaths.Add(SoftPtr.ToSoftObjectPath());
-			}
-			else
-			{
-				// Already loaded
-				InputActionsToConsume.Add(SoftPtr.Get());
-			}
-		}
-
-		// Bulk load all objects at once
-		FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
-
-		if (AssetPaths.Num() > 0)
-		{
-			Streamable.RequestAsyncLoad(
-				AssetPaths,
-				FStreamableDelegate::CreateUObject(this, &UGASC_InputBufferComponent::LoadInputActionsFromSettings)
-			);
-		}
-	}
-
-	if (InputBufferSettings->MovementInputAction)
-	{
-		FSoftObjectPath AssetPath;
-		if (const TSoftObjectPtr<UInputAction>& SoftPtr = InputBufferSettings->MovementInputAction)
-		{
-			if (!SoftPtr.IsValid())
-			{
-				AssetPath = SoftPtr.ToSoftObjectPath();
-			}
-			else
-			{
-				MovementInputAction = SoftPtr.Get();
-			}
-		}
-
-		// Bulk load all objects at once
-		FStreamableManager& Streamable = UAssetManager::GetStreamableManager();
-
-		if (AssetPath.IsValid())
-		{
-			Streamable.RequestAsyncLoad(
-				AssetPath,
-				FStreamableDelegate::CreateUObject(this, &UGASC_InputBufferComponent::LoadInputActionsFromSettings)
-			);
-		}
-	}
-
+	InputBufferComponentName = GetPathNameSafe(this);
+	MovementInputAxis = FVector2D::ZeroVector;
+	BufferedMovementInputAxis = FVector2D::ZeroVector;
+	bBindingsRegistered = false;
 }
 
-void UGASC_InputBufferComponent::LoadInputActionsFromSettings()
+void UGASC_InputBufferComponent::BeginPlay()
 {
-	InputBufferSettings = GetDefault<UGASC_InputBuffer_Settings>();
-	if (!InputBufferSettings || InputBufferSettings->BufferedInputActions.IsEmpty())
-	{
-		return;
-	}
-
-	for (const TSoftObjectPtr<UInputAction>& SoftPtr : InputBufferSettings->BufferedInputActions)
-	{
-		if (UInputAction* Action = SoftPtr.Get())
-		{
-			InputActionsToConsume.Add(Action);
-		}
-		else
-		{
-			UE_LOG(LOG_GASC_InputBufferComponent, Warning, 
-	   TEXT("Failed to load input action from soft pointer"));
-
-		}
-	}
-
-	// You can now use LoadedInputActions
-	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("All input actions loaded (%d total)."), InputActionsToConsume.Num());
+	Super::BeginPlay();
 }
 
-void UGASC_InputBufferComponent::LoadMovementInputActionFromSettings()
+void UGASC_InputBufferComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	InputBufferSettings = GetDefault<UGASC_InputBuffer_Settings>();
-	if (!InputBufferSettings)
+	Super::EndPlay(EndPlayReason);
+	RemoveBindings();
+}
+
+void UGASC_InputBufferComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	// Clear the one-frame latch
+	StateTreeQueue.bOpenedThisFrame = false;
+}
+
+
+bool UGASC_InputBufferComponent::QueueStateTreeEventOncePerActionPerFrame(const UInputAction* Action, const FGameplayTag& Tag)
+{
+	if (!Action || !Tag.IsValid())
+		return false;
+
+	const uint64 Frame = GFrameCounter;
+
+	// Optional: if buffer is open OR opened this frame, block
+	if (IsInputBufferOpen() || StateTreeQueue.bOpenedThisFrame)
+		return false;
+
+	// Once per action per frame
+	const TObjectPtr<const UInputAction> Key(Action);
+	uint64& LastFrame = StateTreeQueue.LastAcceptedFrameByAction.FindOrAdd(Key);
+	if (LastFrame == Frame)
+		return false;
+	LastFrame = Frame;
+
+	// Optional: only allow one queued event per frame total
+	if (StateTreeQueue.LastQueuedFrame == Frame)
+		return false;
+
+	// Only one pending event at a time
+	if (StateTreeQueue.bHasPending)
+		return false;
+
+	StateTreeQueue.LastQueuedFrame = Frame;
+	StateTreeQueue.bHasPending = true;
+	StateTreeQueue.PendingTag = Tag;
+	return true;
+}
+
+bool UGASC_InputBufferComponent::ConsumeQueuedStateTreeEvent(FGameplayTag& OutTag)
+{
+	if (!StateTreeQueue.bHasPending || !StateTreeQueue.PendingTag.IsValid())
+		return false;
+
+	OutTag = StateTreeQueue.PendingTag;
+	StateTreeQueue.PendingTag = FGameplayTag(); // clear [5](https://forums.unrealengine.com/t/why-state-tree-on-state-completed-transition-does-not-work/2630123)
+	StateTreeQueue.bHasPending = false;
+	return true;
+}
+
+void UGASC_InputBufferComponent::ResetStateTreeEventQueue()
+{
+	StateTreeQueue.Reset();
+}
+
+
+void UGASC_InputBufferComponent::MarkInputBufferOpenedThisFrame()
+{
+	// Call this when your animation track opens the buffer on frame 0
+	StateTreeQueue.bOpenedThisFrame = true;
+	StateTreeQueue.LastQueuedFrame = GFrameCounter; // block same-frame queue
+}
+
+bool UGASC_InputBufferComponent::ResolveOwnerObjects()
+{
+	OwningCharacter = Cast<AGASCourseCharacter>(GetOwner());
+	if (!OwningCharacter)
+	{
+		UE_LOG(LOG_GASC_InputBufferComponent, Verbose, TEXT("ResolveOwnerObjects: OwningCharacter null: %s"), *InputBufferComponentName);
+		return false;
+	}
+
+	OwningPlayerController = Cast<AGASCoursePlayerController>(OwningCharacter->GetController());
+	if (!OwningPlayerController)
+	{
+		UE_LOG(LOG_GASC_InputBufferComponent, Verbose, TEXT("ResolveOwnerObjects: OwningPlayerController null: %s"), *InputBufferComponentName);
+		return false;
+	}
+
+	EnhancedInputComponent = Cast<UEnhancedInputComponent>(OwningPlayerController->InputComponent);
+	if (!EnhancedInputComponent)
+	{
+		UE_LOG(LOG_GASC_InputBufferComponent, Verbose, TEXT("ResolveOwnerObjects: EnhancedInputComponent null: %s"), *InputBufferComponentName);
+		return false;
+	}
+
+	return true;
+}
+
+void UGASC_InputBufferComponent::TryInitializeBindings()
+{
+	if (bBindingsRegistered)
 	{
 		return;
 	}
 
-	const TSoftObjectPtr<UInputAction>& SoftPtr = InputBufferSettings->MovementInputAction;
-	MovementInputAction = SoftPtr.Get();
+	if (!ResolveOwnerObjects())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimerForNextTick(
+				FTimerDelegate::CreateUObject(this, &UGASC_InputBufferComponent::TryInitializeBindings)
+			);
+		}
+		return;
+	}
 
-	// You can now use MovementInputAction
-	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Movement Input Action available!"));
+	ListenToInputActions();
+}
+
+void UGASC_InputBufferComponent::ListenToInputActions()
+{
+	if (!EnhancedInputComponent || bBindingsRegistered)
+	{
+		return;
+	}
+	if (InputActionsToBuffer.IsEmpty())
+	{
+		UE_LOG(LOG_GASC_InputBufferComponent, Verbose, TEXT("ListenToInputActions: Input Actions to Buffer is Empty: %s"), *InputBufferComponentName);
+		return;
+	}
+
+	for (UInputAction* InputAction : InputActionsToBuffer)
+	{
+		if (!InputAction)
+		{
+			continue;
+		}
+
+		const FEnhancedInputActionEventBinding& TriggeredBinding =
+			EnhancedInputComponent->BindActionValueLambda(
+				InputAction,
+				ETriggerEvent::Triggered,
+				[this, InputAction](const FInputActionValue& Value)
+				{
+					AddInputActionToBuffer(InputAction);
+				});
+
+		BindingHandles.Add(TriggeredBinding.GetHandle());
+	}
+	
+	if (!MovementInputActionToBuffer)
+	{
+		UE_LOG(LOG_GASC_InputBufferComponent, Verbose, TEXT("ListenToInputActions: MovementInputActionToBuffer is null: %s"), *InputBufferComponentName);
+		return;	
+	}
+
+	const FEnhancedInputActionEventBinding& TriggeredBinding =
+		EnhancedInputComponent->BindActionValueLambda(
+			MovementInputActionToBuffer,
+			ETriggerEvent::Triggered,
+			[this](const FInputActionValue& Value)
+			{
+				MovementInputAxis = Value.Get<FVector2D>();
+			});
+
+	BindingHandles.Add(TriggeredBinding.GetHandle());
+	bBindingsRegistered = true;
+
+	UE_LOG(
+		LOG_GASC_InputBufferComponent,
+		Log,
+		TEXT("Bindings %s for %s. BufferedActions=%d Movement=%s"),
+		bBindingsRegistered ? TEXT("registered") : TEXT("not registered"),
+		*InputBufferComponentName,
+		InputActionsToBuffer.Num(),
+		MovementInputActionToBuffer ? *MovementInputActionToBuffer->GetName() : TEXT("None")
+	);
+}
+
+void UGASC_InputBufferComponent::RemoveBindings()
+{
+	if (EnhancedInputComponent)
+	{
+		for (const uint32 Handle : BindingHandles)
+		{
+			EnhancedInputComponent->RemoveActionEventBinding(Handle);
+		}
+	}
+
+	BindingHandles.Empty();
+	bBindingsRegistered = false;
 }
 
 void UGASC_InputBufferComponent::OpenInputBuffer_Implementation()
 {
-	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Buffer Open: %s"), *INPUT_BUFFER_COMPONENT_NAME);
+	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Buffer Open: %s"), *InputBufferComponentName);
 	
 	bInputBufferOpen = true;
 	OnInputBufferOpenedEvent.Broadcast();
@@ -146,7 +233,8 @@ void UGASC_InputBufferComponent::OpenInputBuffer_Implementation()
 
 void UGASC_InputBufferComponent::CloseInputBuffer_Implementation()
 {
-	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Buffer Closed: %s"), *INPUT_BUFFER_COMPONENT_NAME);
+	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Buffer Closed: %s"), *InputBufferComponentName);
+
 	bInputBufferOpen = false;
 	ActivateBufferedInputAbility();
 	FlushInputBuffer();
@@ -156,7 +244,8 @@ void UGASC_InputBufferComponent::CloseInputBuffer_Implementation()
 
 bool UGASC_InputBufferComponent::FlushInputBuffer()
 {
-	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Buffer Flushed: %s"), *INPUT_BUFFER_COMPONENT_NAME);
+	UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Buffer Flushed: %s"), *InputBufferComponentName);
+
 	BufferedInputActions.Empty();
 	OnInputBufferFlushedEvent.Broadcast();
 	return true;
@@ -164,19 +253,27 @@ bool UGASC_InputBufferComponent::FlushInputBuffer()
 
 void UGASC_InputBufferComponent::ActivateBufferedInputAbility()
 {
-	if(OwningCharacter)
+	if (!OwningCharacter)
 	{
-		if(UGASCourseAbilitySystemComponent* ASC = OwningCharacter->GetAbilitySystemComponent())
+		return;
+	}
+
+	if (UGASCourseAbilitySystemComponent* ASC = OwningCharacter->GetAbilitySystemComponent())
+	{
+		if (BufferedInputActions.Num() > 0)
 		{
-			if (GetBufferedInputActions().Num() > 0)
+			if (UInputAction* InputActionToSimulate = BufferedInputActions[0])
 			{
-				if (UInputAction* InputActionToSimulate = BufferedInputActions[0])
-				{
-					UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Action Simulated: %s, %s"),
-					*InputActionToSimulate->GetName(), *INPUT_BUFFER_COMPONENT_NAME);
-					SimulateInputAction(InputActionToSimulate);
-					OnInputBufferedConsumedEvent.Broadcast(InputActionToSimulate);
-				}
+				UE_LOG(
+					LOG_GASC_InputBufferComponent,
+					Log,
+					TEXT("Input Action Simulated: %s, %s"),
+					*InputActionToSimulate->GetName(),
+					*InputBufferComponentName
+				);
+
+				SimulateInputAction(InputActionToSimulate);
+				OnInputBufferedConsumedEvent.Broadcast(InputActionToSimulate);
 			}
 		}
 	}
@@ -186,80 +283,50 @@ void UGASC_InputBufferComponent::AddInputActionToBuffer(UInputAction* InAction)
 {
 	if (InAction && IsInputBufferOpen())
 	{
-		UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Action Added to Buffer: %s, %s"),
-		*InAction->GetName(), *INPUT_BUFFER_COMPONENT_NAME);
+		UE_LOG(
+			LOG_GASC_InputBufferComponent,
+			Log,
+			TEXT("Input Action Added to Buffer: %s, %s"),
+			*InAction->GetName(),
+			*InputBufferComponentName
+		);
+
 		BufferedInputActions.AddUnique(InAction);
 		BufferedMovementInputAxis = MovementInputAxis;
-		UE_LOGFMT(LOG_GASC_InputBufferComponent, Warning, "BufferedMovementInputAxis: {0}, {1}", BufferedMovementInputAxis.ToString(), INPUT_BUFFER_COMPONENT_NAME);
-	}
-}
 
-void UGASC_InputBufferComponent::ListenToInputActions()
-{
-	InputBufferSettings = GetDefault<UGASC_InputBuffer_Settings>();
-	if (!InputBufferSettings)
-	{
-		return;
-	}
-
-	OwningCharacter = Cast<AGASCourseCharacter>(GetOwner());
-	if(!OwningCharacter)
-	{
-		return;
-	}
-
-	OwningPlayerController = Cast<AGASCoursePlayerController>(OwningCharacter->GetController());
-	if (!OwningPlayerController)
-	{
-		return;
-	}
-
-	EnhancedInputComponent = Cast<UEnhancedInputComponent>(OwningPlayerController->InputComponent);
-	if (!EnhancedInputComponent)
-	{
-		return;
-	}
-
-	for (UInputAction* InputAction : InputActionsToConsume)
-	{
-		if (InputAction)
-		{
-			const FEnhancedInputActionEventBinding* TriggeredEventBinding = &EnhancedInputComponent->BindActionValueLambda(InputAction, ETriggerEvent::Triggered, [this, InputAction](const FInputActionValue& Value)
-			{
-				AddInputActionToBuffer(InputAction);
-			});
-
-			Bindings.Add(TriggeredEventBinding);
-		}
-	}
-
-	if (MovementInputAction)
-	{
-		const FEnhancedInputActionEventBinding* TriggeredEventBinding = &EnhancedInputComponent->BindActionValueLambda(MovementInputAction, ETriggerEvent::Triggered, [this](const FInputActionValue& Value)
-		{
-			MovementInputAxis = Value.Get<FVector2D>();
-		});
-
-		Bindings.Add(TriggeredEventBinding);
+		UE_LOGFMT(
+			LOG_GASC_InputBufferComponent,
+			Warning,
+			"BufferedMovementInputAxis: {0}, {1}",
+			BufferedMovementInputAxis.ToString(),
+			InputBufferComponentName
+		);
 	}
 }
 
 void UGASC_InputBufferComponent::SimulateInputAction(const UInputAction* InputAction) const
 {
-	if (!OwningPlayerController)
+	if (!OwningPlayerController || !InputAction)
 	{
 		return;
 	}
 
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
-		OwningPlayerController->GetLocalPlayer()))
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem =
+		ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(OwningPlayerController->GetLocalPlayer()))
 	{
-		FInputActionValue Value(EInputActionValueType::Boolean, FVector(1.0f, 1.0f, 1.0f));
-		const TArray<UInputModifier*>& Modifiers = {};
-		const TArray<UInputTrigger*>& Triggers = {};
+		const FInputActionValue Value(EInputActionValueType::Boolean, FVector(1.0f, 1.0f, 1.0f));
+		const TArray<UInputModifier*> Modifiers;
+		const TArray<UInputTrigger*> Triggers;
+
 		Subsystem->InjectInputForAction(InputAction, Value, Modifiers, Triggers);
-		UE_LOG(LOG_GASC_InputBufferComponent, Log, TEXT("Input Action Simulated: %s, %s"),
-		*InputAction->GetName(), *INPUT_BUFFER_COMPONENT_NAME);
+
+		UE_LOG(
+			LOG_GASC_InputBufferComponent,
+			Log,
+			TEXT("Input Action Simulated: %s, %s"),
+			*InputAction->GetName(),
+			*InputBufferComponentName
+		);
 	}
 }
 
@@ -271,30 +338,21 @@ void UGASC_InputBufferComponent::FlushCachedMovementInputAxisValue()
 
 FVector2D UGASC_InputBufferComponent::GetMovementInputAxisValue()
 {
-	FVector2D MovementInputAxisValue = BufferedMovementInputAxis;
-	UE_LOG(LogTemp, Warning, TEXT("INPUT BUFFER: Buffered Movement Input: %s"), *MovementInputAxisValue.ToString())
+	const FVector2D MovementInputAxisValue = BufferedMovementInputAxis;
+	UE_LOG(LogTemp, Warning, TEXT("INPUT BUFFER: Buffered Movement Input: %s"), *MovementInputAxisValue.ToString());
 	FlushCachedMovementInputAxisValue();
 	return MovementInputAxisValue;
 }
 
-// Called when the game starts
-void UGASC_InputBufferComponent::BeginPlay()
+TArray<UInputAction*> UGASC_InputBufferComponent::GetBufferedInputActions() const
 {
-	Super::BeginPlay();
+	TArray<UInputAction*> Result;
+	Result.Reserve(BufferedInputActions.Num());
 
-	// ...
-	ListenToInputActions();
-
-}
-
-void UGASC_InputBufferComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	Super::EndPlay(EndPlayReason);
-	if (EnhancedInputComponent)
+	for (const TObjectPtr<UInputAction>& Action : BufferedInputActions)
 	{
-		for (const FEnhancedInputActionEventBinding* Binding: Bindings)
-		{
-			EnhancedInputComponent->RemoveActionEventBinding(Binding->GetHandle());
-		}
+		Result.Add(Action.Get());
 	}
+
+	return Result;
 }

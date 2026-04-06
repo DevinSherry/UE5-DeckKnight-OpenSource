@@ -244,6 +244,11 @@ void AGASCoursePlayerCharacter::SetupPlayerInputComponent(UInputComponent* Playe
 			{
 				ApplyAbilityChordedInputMapping(EnhancedInputComponent);
 			}
+			
+			if (InputBufferComponent)
+			{
+				InputBufferComponent->TryInitializeBindings();
+			}
 		}
 	}
 }
@@ -271,10 +276,18 @@ void AGASCoursePlayerCharacter::PossessedBy(AController* NewController)
 	
 	UpdateCharacterAnimLayer(UnArmedAnimLayer);
 	InitializeCamera();
+	if (InputBufferComponent)
+	{
+		InputBufferComponent->TryInitializeBindings();
+	}
 }
 
 void AGASCoursePlayerCharacter::UnPossessed()
 {
+	if (InputBufferComponent)
+	{
+		InputBufferComponent->RemoveBindings();
+	}
 	RemoveAbilityChordedInputMapping();
 	Super::UnPossessed();
 }

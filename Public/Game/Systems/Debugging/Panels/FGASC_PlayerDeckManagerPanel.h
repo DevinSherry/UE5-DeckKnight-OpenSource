@@ -6,6 +6,16 @@
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
 #include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
 
+/*
+UENUM(BlueprintType)
+enum class ECardDataFilterType : uint8
+{
+	
+	ShowAll,
+	
+};
+*/
+
 /**
  * @class FGASC_PlayerDeckManagerPanel
  * @brief Handles the management and UI representation of the player's card deck.
@@ -48,6 +58,11 @@ public:
 	UWorld* World = nullptr;
 	TArray<FAssetData> CacheCardAssets();
 	
+#if WITH_EDITOR
+	void OpenAsset(UObject* AssetObject, bool bForceOpen = false/** If true, don't draw button*/);
+	void OpenBlueprintAsset(UObject* BlueprintObject);
+#endif
+	
 private:
 	
 	static TArray<FAssetData> CachedCardDataAssets;
@@ -58,6 +73,10 @@ private:
 	
 	static FImGuiTextureHandle GetOrRegisterTexture(UTexture* Texture);
 	static float GetOrAddCardLevelOverride(UBaseCardGameplayAbilitySet* CardSet);
+	static bool bDebugIgnoreCardCosts;
+	static bool bFilterForEmptyOrMissingCardData;
 	
 	static TMap<TWeakObjectPtr<UBaseCardGameplayAbilitySet>, float> CardLevelOverrides;
+	
+	static int MissingCardInfoFilter;
 };

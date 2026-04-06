@@ -10,28 +10,50 @@
 namespace UE::GameplayStateTree::Private
 {
 	static FLazyName Name_PlayerPawn = "PlayerPawn";
-}
+	static const FGuid PlayerPawnGuid(0x12345678, 0x11111111, 0x22222222, 0x33333333);
 
-namespace UE::GameplayStateTree::Private
-{
 	static FLazyName Name_AbilitySystemComponent = "PlayerASC";
+	static const FGuid AbilitySystemGuid(0x87654321, 0x44444444, 0x55555555, 0x66666666);
 }
 
 UGASC_PlayerStateTreeSchema::UGASC_PlayerStateTreeSchema(const FObjectInitializer& ObjectInitializer)
-	//: PawnClass(AGASCoursePlayerCharacter::StaticClass())
 {
-	check(ContextDataDescs.Num() == 1 && ContextDataDescs[0].Struct == AActor::StaticClass());
+	check(ContextDataDescs.Num() >= 1);
 
 	ContextActorClass = APlayerController::StaticClass();
 	ContextDataDescs[0].Struct = ContextActorClass.Get();
-	ContextDataDescs.Emplace(UE::GameplayStateTree::Private::Name_PlayerPawn, PawnClass.Get(), FGuid::NewGuid());
-	ContextDataDescs.Emplace(UE::GameplayStateTree::Private::Name_AbilitySystemComponent, AbilitySystemComponent.Get(), FGuid::NewGuid());
+
+	if (ContextDataDescs.Num() < 2)
+	{
+		ContextDataDescs.Emplace(
+			UE::GameplayStateTree::Private::Name_PlayerPawn,
+			PawnClass.Get(),
+			UE::GameplayStateTree::Private::PlayerPawnGuid);
+	}
+	else
+	{
+		ContextDataDescs[1].Name = UE::GameplayStateTree::Private::Name_PlayerPawn;
+		ContextDataDescs[1].Struct = PawnClass.Get();
+	}
+
+	if (ContextDataDescs.Num() < 3)
+	{
+		ContextDataDescs.Emplace(
+			UE::GameplayStateTree::Private::Name_AbilitySystemComponent,
+			AbilitySystemComponent.Get(),
+			UE::GameplayStateTree::Private::AbilitySystemGuid);
+	}
+	else
+	{
+		ContextDataDescs[2].Name = UE::GameplayStateTree::Private::Name_AbilitySystemComponent;
+		ContextDataDescs[2].Struct = AbilitySystemComponent.Get();
+	}
 }
 
 void UGASC_PlayerStateTreeSchema::PostLoad()
 {
 	Super::PostLoad();
-	if (ContextDataDescs.Num() > 1)
+	if (ContextDataDescs.Num() > 3)
 	{
 		ContextDataDescs[1].Struct = PawnClass.Get();
 		ContextDataDescs[2].Struct = AbilitySystemComponent.Get();
@@ -62,7 +84,7 @@ bool UGASC_PlayerStateTreeSchema::SetContextRequirements(UBrainComponent& BrainC
 	Context.SetContextDataByName(PlayerPawnName, FStateTreeDataView(PlayerCharacter));
 	Context.SetContextDataByName(AbilitySystemComponentName, FStateTreeDataView(ASC));
 	
-	return Super::SetContextRequirements(BrainComponent, Context, true);
+	return Super::SetContextRequirements(BrainComponent, Context, bLogErrors);
 }
 
 #if WITH_EDITOR

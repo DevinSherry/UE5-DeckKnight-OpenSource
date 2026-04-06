@@ -2,7 +2,6 @@
 
 
 #include "Game/HUD/Cards/GASC_UI_CardHand.h"
-
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/CanvasPanel.h"
 #include "Game/HUD/Cards/GASC_UI_CardTemplate.h"

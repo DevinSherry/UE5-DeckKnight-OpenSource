@@ -80,6 +80,9 @@ struct FGrantedCardAbilityConfig
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Ability Configuration")
 	TSubclassOf<UGameplayEffect> DurationEffect;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Card Ability Configuration")
+	int32 AbilityStackCount = 1;
 };
 
 /**
@@ -216,6 +219,16 @@ public:
 	 */
 	UFUNCTION()
 	FORCEINLINE void SetDurationGameplayEffect(TSubclassOf<UGameplayEffect> InDurationEffect) {DurationEffect = InDurationEffect;}
+
+	/**
+	 * HasStacksAvailable
+	 *
+	 * Determines whether the ability has available stacks, allowing it to be used.
+	 *
+	 * @return True if the ability has more than one stack available, false otherwise.
+	 */
+	UFUNCTION()
+	bool HasStacksAvailable();
 	
 protected:
 	

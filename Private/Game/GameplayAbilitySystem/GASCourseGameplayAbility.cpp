@@ -7,9 +7,9 @@
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectTypes.h"
-#include "Abilities/Tasks/AbilityTask_WaitGameplayEffectRemoved.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Game/Character/Player/GASCoursePlayerCharacter.h"
+#include "Game/Character/Player/GASCoursePlayerController.h"
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "Game/GameplayAbilitySystem/GameplayAbilities/GASC_AbilityParamsObject.h"
 #include "Game/GameplayAbilitySystem/Tasks/DamagePipeline/GASC_OnHitEventTask.h"
@@ -161,16 +161,27 @@ void UGASCourseGameplayAbility::OnGiveAbility(const FGameplayAbilityActorInfo* A
 	GetAbilitySystemComponentFromActorInfo()->HandleGameplayEvent(Event_Gameplay_OnAbilityGranted, &OnAbilityGranted);
 }
 
-void UGASCourseGameplayAbility::OnRemoveAbility(const FGameplayAbilityActorInfo* ActorInfo,
+void UGASCourseGameplayAbility::OnRemoveAbility(
+	const FGameplayAbilityActorInfo* ActorInfo,
 	const FGameplayAbilitySpec& Spec)
 {
-	if (UGASCourseAbilitySystemComponent* ASC = GetGASCourseAbilitySystemComponentFromActorInfo())
+	UGASCourseAbilitySystemComponent* ASC = GetGASCourseAbilitySystemComponentFromActorInfo();
+	if (!ASC)
 	{
-		ASC->CardAbilityConfigHandles.Remove(Spec.Handle);
+		Super::OnRemoveAbility(ActorInfo, Spec);
+		return;
 	}
-	EndAbility(Spec.Handle, ActorInfo, Spec.GetPrimaryInstance()->GetCurrentActivationInfo(), true, false);
-	K2_OnAbilityRemoved();
+
+	if (IsActive())
+	{
+		if (UGameplayAbility* Instance = Spec.GetPrimaryInstance())
+		{
+			EndAbility(Spec.Handle, ActorInfo, Instance->GetCurrentActivationInfo(), true, false);
+		}
+	}
+
 	OnAbilityClearedDelegate.Broadcast(this);
+	K2_OnAbilityRemoved();
 	Super::OnRemoveAbility(ActorInfo, Spec);
 }
 
@@ -206,27 +217,50 @@ void UGASCourseGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 }
 
 void UGASCourseGameplayAbility::EndAbility(const FGameplayAbilitySpecHandle Handle,
-	const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo,
-	bool bReplicateEndAbility, bool bWasCancelled)
+	const FGameplayAbilityActorInfo* ActorInfo,
+	const FGameplayAbilityActivationInfo ActivationInfo,
+	bool bReplicateEndAbility,
+	bool bWasCancelled)
 {
-	if (AGASCoursePlayerState* PS = Cast<AGASCoursePlayerState>(GetOwningActorFromActorInfo()))
+	UGASCourseAbilitySystemComponent* ASC = GetGASCourseAbilitySystemComponentFromActorInfo();
+	if (!ASC)
 	{
-		if (UDeckManagerComponent* DeckManagerComponent = PS->DeckManagerComponent)
+		Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+		return;
+	}
+
+	// If this is a duration ability and its duration effect is still active,
+	// just end the current activation and leave the granted ability alone.
+	if (AbilityType == EGASCourseAbilityType::Duration && DurationEffect)
+	{
+		if (DurationEffectHandle.IsValid() && ASC->GetActiveGameplayEffect(DurationEffectHandle) != nullptr)
 		{
-			//Check Duration	`
-			//Check Cooldown
-			//Check Stacks
-			if (AbilitySlotType == EGASCourseAbilitySlotType::ActiveAbilitySlot || AbilitySlotType == EGASCourseAbilitySlotType::EvasiveAbilitySlot)
-			{
-				if (AbilityType == EGASCourseAbilityType::Duration)
-				{
-					Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
-					return;
-				}
-				GetAbilitySystemComponentFromActorInfo_Ensured()->ClearAbility(Handle);
-			}
+			Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+			return;
 		}
 	}
+
+	// Stack logic should use Handle, not class lookup.
+	if (FGrantedCardAbilityConfig* Config = ASC->CardAbilityConfigHandles.Find(Handle))
+	{
+		if (Config->AbilityStackCount > 1)
+		{
+			--Config->AbilityStackCount;
+			ASC->OnActiveCardAbilityStackCountChanged.Broadcast(Config->AbilityStackCount, GetClass());
+
+			Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+			return;
+		}
+
+		// Last stack: remove config and clear granted ability.
+		ASC->CardAbilityConfigHandles.Remove(Handle);
+		ASC->ClearAbility(Handle);
+
+		Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+		return;
+	}
+
+	// No config found, just end normally.
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
@@ -654,9 +688,30 @@ void UGASCourseGameplayAbility::DurationEffectRemoved(const FGameplayEffectRemov
 		if(bAutoEndAbilityOnDurationEnd)
 		{
 			EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
-			GetAbilitySystemComponentFromActorInfo_Ensured()->ClearAbility(CurrentSpecHandle);
 		}
 	}
+}
+
+bool UGASCourseGameplayAbility::HasStacksAvailable()
+{
+	if (UGASCourseAbilitySystemComponent* ASC = GetGASCourseAbilitySystemComponentFromActorInfo())
+	{
+		TArray<FGameplayAbilitySpecHandle> ActiveCardHandles;
+		ASC->CardAbilityConfigHandles.GetKeys(ActiveCardHandles);
+		for (const FGameplayAbilitySpecHandle Handle : ActiveCardHandles)
+		{
+			if (const FGameplayAbilitySpec* AbilitySpec = ASC->FindAbilitySpecFromHandle(Handle))
+			{
+				if (AbilitySpec->Ability && AbilitySpec->Ability->GetClass() == GetClass())
+				{
+					int32 StackCount = ASC->CardAbilityConfigHandles.Find(Handle)->AbilityStackCount;
+					return StackCount > 1;
+				}
+			}
+		}
+	}
+	
+	return false;
 }
 
 bool UGASCourseGameplayAbility::ApplyDurationEffect()
@@ -676,13 +731,13 @@ bool UGASCourseGameplayAbility::ApplyDurationEffect()
 		{
 			FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
 			ContextHandle.AddInstigator(ASC->GetOwnerActor(), ASC->GetOwnerActor());
-			FActiveGameplayEffectHandle DurationGameplayEffectHandle = ASC->ApplyGameplayEffectToSelf(DurationEffect.GetDefaultObject(), GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo), 
+			DurationEffectHandle = ASC->ApplyGameplayEffectToSelf(DurationEffect.GetDefaultObject(), GetAbilityLevel(CurrentSpecHandle, CurrentActorInfo), 
 				ContextHandle);
 			
-			if(DurationGameplayEffectHandle.WasSuccessfullyApplied())
+			if(DurationEffectHandle.WasSuccessfullyApplied())
 			{
 				bSuccess = true;
-				if (FOnActiveGameplayEffectRemoved_Info* RemoveDelegate = ASC->OnGameplayEffectRemoved_InfoDelegate(DurationGameplayEffectHandle))
+				if (FOnActiveGameplayEffectRemoved_Info* RemoveDelegate = ASC->OnGameplayEffectRemoved_InfoDelegate(DurationEffectHandle))
 				{
 					DurationEffectRemovedDelegateHandle = RemoveDelegate->AddUObject(this, &UGASCourseGameplayAbility::DurationEffectRemoved);
 				}

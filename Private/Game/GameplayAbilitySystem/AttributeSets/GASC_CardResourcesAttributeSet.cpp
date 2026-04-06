@@ -53,6 +53,21 @@ void UGASC_CardResourcesAttributeSet::PreAttributeChange(const FGameplayAttribut
 	{
 		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 10.0f);
 	}
+	
+	if(Attribute == GetCardEnergyCostMultiplierAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 5.0f);
+	}
+	
+	if(Attribute == GetCardEnergyCostAdditiveAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, -10.0f, 10.0f);
+	}
+	
+	if(Attribute == GetCardEnergyCostOverrideAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 5.0f);
+	}
 }
 
 void UGASC_CardResourcesAttributeSet::PreAttributeBaseChange(const FGameplayAttribute& Attribute, float& NewValue) const
@@ -160,5 +175,12 @@ void UGASC_CardResourcesAttributeSet::PostGameplayEffectExecute(const FGameplayE
 	if (Data.EvaluatedData.Attribute == GetCurrentCardEnergyXPAttribute())
 	{
 		SetCurrentCardEnergy(FMath::Clamp(GetCurrentCardEnergy(), 0.0f, GetMaximumCardEnergy()));
+	}
+	
+	if (Data.EvaluatedData.Attribute == GetIncomingCardEnergyCostAttribute())
+	{
+		const float LocalIncomingCardCost = GetIncomingCardEnergyCost();
+		SetIncomingCardEnergyCost(0.0f);
+		SetCurrentCardEnergy(GetCurrentCardEnergy() - LocalIncomingCardCost);
 	}
 }

@@ -12,6 +12,7 @@ TSubclassOf<UStateTreeSchema> UGASC_StateTreePlayerComponent::GetSchema() const
 
 bool UGASC_StateTreePlayerComponent::SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors)
 {
-	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UGASC_StateTreePlayerComponent::CollectExternalData));
+	Context.SetLinkedStateTreeOverrides(LinkedStateTreeOverrides);
+	Context.SetCollectExternalDataCallback(FOnCollectStateTreeExternalData::CreateUObject(this, &UGASC_StateTreePlayerComponent::CollectExternalData)); 
 	return UGASC_PlayerStateTreeSchema::SetContextRequirements(*this, Context, bLogErrors);
 }

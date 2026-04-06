@@ -52,6 +52,9 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Invulnerable_Damage, "Status.Invulnerable.
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Invulnerable_Reactions, "Status.Invulnerable.Reactions",
 	"When applied, a character does not play any animation reactions, except for death.")
 
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_CardEnergyCostOverride, "Status.Card.CostOverride",
+	"When applied, card cost will equal value set to GetCardEnergyCostOverrideAttribute.")
+
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingDamage, "Data.IncomingDamage")
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingHealing, "Data.IncomingHealing")
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingCardEnergyXP, "Data.IncomingCardEnergyXP")
@@ -67,6 +70,9 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DamageResisted, "Data.Damage.Resisted",
 	"Used to inform damage systems that the damage applied was a critical hit.")
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_HealingLifeSteal, "Data.Healing.LifeSteal",
 	"Used to inform damage systems that the healing applied was from life steal mechanics.")
+
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_CardCost, "Data.Card.Cost",
+	"Used to inform card cost execution class of the base cost of the activated card.")
 
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Root, "Damage.Type")
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Physical, "Damage.Type.Physical")

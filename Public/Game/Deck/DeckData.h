@@ -44,6 +44,9 @@ struct FCardInfo
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
 	TSoftObjectPtr<UTexture2D> CardIcon;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GASCourse|Card Data")
+	FScalableFloat CardCost;
 
 };
 

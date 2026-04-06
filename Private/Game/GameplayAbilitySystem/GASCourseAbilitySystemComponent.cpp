@@ -488,3 +488,21 @@ TSubclassOf<UGameplayAbility> UGASCourseAbilitySystemComponent::GetAbilityFromTa
 
 	return OutAbility;
 }
+
+bool UGASCourseAbilitySystemComponent::IsActiveAbilityCardAlreadyGranted(TSubclassOf<UGameplayAbility> InAbilityClass) const
+{
+	//TODO: Do I need to scope this for only active ability card types? Or can this be reused for passive cards as well?
+	TArray<FGameplayAbilitySpecHandle> ActiveCardHandles;
+	CardAbilityConfigHandles.GetKeys(ActiveCardHandles);
+	for (const FGameplayAbilitySpecHandle Handle : ActiveCardHandles)
+	{
+		if (const FGameplayAbilitySpec* AbilitySpec = FindAbilitySpecFromHandle(Handle))
+		{
+			if (AbilitySpec->Ability && AbilitySpec->Ability->GetClass() == InAbilityClass)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
