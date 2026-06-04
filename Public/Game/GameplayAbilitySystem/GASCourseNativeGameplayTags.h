@@ -101,6 +101,9 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(AbilityActivationFail_Networking);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_AbilityActivation_Fail);
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_AbilityActivation_CantAffordCost);
 
+//Weapon Tags
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(Weapon_Bow_BlockArrowRegeneration);
+
 struct FGASCourseNativeGameplayTags
 {
 	

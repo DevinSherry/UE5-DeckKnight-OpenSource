@@ -399,36 +399,26 @@ void AGASCoursePlayerCharacter::BindASCInput()
 void AGASCoursePlayerCharacter::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D
-	const FVector2D MovementVector = Value.Get<FVector2D>();
+	MovementInputVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
 	{
-		if (UGASCourseAbilitySystemComponent* GASCourseASC = GetAbilitySystemComponent())
+		if(MovementInputVector.Length() > 0.0f)
 		{
-			//Block any type of movement if character has tag Status.MovementInputBlocked
-			if(GASCourseASC->HasMatchingGameplayTag(Status_Block_MovementInput))
-			{
-				return;
-			}
-			if(MovementVector.Length() > 0.0f)
-			{
-				GASCourseASC->SetLooseGameplayTagCount(Status_IsMoving, 1);
-				// find out which way is forward
-				const FRotator Rotation = Controller->GetControlRotation();
+			// find out which way is forward
+			const FRotator Rotation = Controller->GetControlRotation();
+			const FRotator YawRotation(0, Rotation.Yaw, 0);
 
-				const FRotator YawRotation(0, Rotation.Yaw, 0);
-
-				// get forward vector
-				const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+			// get forward vector
+			const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 	
-				// get right vector 
-				const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+			// get right vector 
+			const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-				// add movement 
-				AddMovementInput(ForwardDirection, MovementVector.Y);
-				AddMovementInput(RightDirection, MovementVector.X);
+			// add movement 
+			AddMovementInput(ForwardDirection, MovementInputVector.Y);
+			AddMovementInput(RightDirection, MovementInputVector.X);
 				
-			}
 		}
 	}
 }
@@ -446,6 +436,27 @@ void AGASCoursePlayerCharacter::Look(const FInputActionValue& Value)
 		AddControllerPitchInput(LookAxisVector.Y * RotationSensitivity);
 	}
 	Input_RotateCameraAxis(Value);
+}
+
+void AGASCoursePlayerCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
+{
+	UGASCourseAbilitySystemComponent* GASCourseASC = GetAbilitySystemComponent();
+	if (!GASCourseASC)
+	{
+		Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
+		return;
+	}
+	
+	if (WorldDirection.Size() * ScaleValue > 0.0f)
+	{
+		GASCourseASC->SetLooseGameplayTagCount(Status_IsMoving, 1);
+	}
+		
+	bool bHasMovementIgnoredTag = GASCourseASC->HasMatchingGameplayTag(Status_Block_MovementInput);
+	if (bForce || !bHasMovementIgnoredTag)
+	{
+		Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
+	}
 }
 
 void AGASCoursePlayerCharacter::Input_RotateCameraAxis(const FInputActionValue& Value)

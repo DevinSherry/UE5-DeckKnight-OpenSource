@@ -246,17 +246,26 @@ void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(
         {
             FProperty* Prop = *It;
 
-            // Only Blueprint-visible editable properties
-            if (!Prop->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_Edit))
-                continue;
 
-            // Skip per-instance-disabled
-            if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance))
-                continue;
+        	// Only Blueprint visible
+        	if (!Prop->HasAnyPropertyFlags(CPF_BlueprintVisible))
+        		continue;
 
-            // Skip deprecated
-            if (Prop->HasAnyPropertyFlags(CPF_Deprecated))
-                continue;
+        	// Must be editable (somewhere)...
+        	if (!Prop->HasAnyPropertyFlags(CPF_Edit))
+        		continue;
+
+        	// ...and must be editable on instances (public/external editing intent)
+        	if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance)) // not instance editable
+        		continue;
+
+        	// Optional: if you ONLY want instance-editable (not defaults-only)
+        	if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnTemplate)) // template-only restrictions
+        		continue;
+
+        	// Skip deprecated
+        	if (Prop->HasAnyPropertyFlags(CPF_Deprecated))
+        		continue;
 
             FPropertyBagPropertyDesc Desc(Prop->GetFName(), Prop);
             if (Desc.ValueType != EPropertyBagPropertyType::None)
@@ -266,10 +275,12 @@ void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(
         }
     }
 
+	FInstancedPropertyBag OldBag = Bag;
     const UPropertyBag* BagStruct =
         UPropertyBag::GetOrCreateFromDescs(Descs);
 
     Bag.InitializeFromBagStruct(BagStruct);
+	TArray<FName> PropertyNames;
 
     const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct();
     if (!PBStruct)
@@ -289,6 +300,8 @@ void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(
 
         if (!SrcPtr)
             continue;
+    	
+    	PropertyNames.Add(Desc.Name);
 
         EPropertyBagResult Res =
             Bag.SetValue(Desc.Name, SrcProp, AbilityCDO);
@@ -298,4 +311,6 @@ void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(
             // Optional: log mismatch
         }
     }
+	
+	Bag.CopyMatchingValuesByName(OldBag, MakeConstArrayView(PropertyNames));
 }

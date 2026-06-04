@@ -32,6 +32,7 @@ public class GASCourse : ModuleRules
 			"MassRepresentation",
 			"GameplayMessageRuntime", 
 			"ImGui",
+			"StateTreeModule",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]
@@ -42,6 +43,7 @@ public class GASCourse : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule", 
 			"Slate",
+			"PropertyBindingUtils",
 		});
 
 		if (Target.Type == TargetType.Editor)

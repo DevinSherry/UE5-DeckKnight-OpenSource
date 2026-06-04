@@ -43,4 +43,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Trails")
 	float TrailLifeTime = 0.35f;
 	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Trails")
+	float TrailWidth = 40.0f;
+	
 };

@@ -91,6 +91,15 @@ public:
 	 */
 	UFUNCTION()
 	void RemoveAbilityChordedInputMapping();
+	
+	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Weapon")
+	UMeshComponent* ActiveWeaponMeshComponent() const;
+	
+	UFUNCTION(BlueprintPure)
+	FVector2D GetMovementInputVector() const
+	{
+		return MovementInputVector;
+	}
 
 protected:
 
@@ -114,6 +123,11 @@ protected:
 
 	virtual void Move(const FInputActionValue& Value) override;
 	virtual void Look(const FInputActionValue& Value) override;
+	
+	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1, bool bForce = false) override;
+	
+	UPROPERTY()
+	FVector2D MovementInputVector;
 
 	void Input_CameraZoom(const FInputActionInstance& InputActionInstance);
 	void Input_RotateCameraAxis(const FInputActionValue& Value);

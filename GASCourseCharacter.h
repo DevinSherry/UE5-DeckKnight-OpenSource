@@ -232,7 +232,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	class USceneComponent* TargetingSceneComponent;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = HealthComponent, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = MotionWarpComponent, meta = (AllowPrivateAccess = "true"))
 	UMotionWarpingComponent* MotionWarpComponent;
 
 	void InitializeAbilitySystem(UGASCourseAbilitySystemComponent* InASC);

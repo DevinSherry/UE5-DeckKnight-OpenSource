@@ -89,7 +89,13 @@ void UGASCourseGameplayAbility::TryActivateAbilityOnSpawn(const FGameplayAbility
 	if (ActorInfo && !Spec.IsActive() && !bIsPredicting && (ActivationPolicy == EGASCourseAbilityActivationPolicy::OnSpawn))
 	{
 		FGameplayTagContainer SourceTags;
-		GetGrantedByEffectContext().GetOriginalInstigatorAbilitySystemComponent()->GetOwnedGameplayTags(SourceTags);
+		UAbilitySystemComponent* InstigatorASC = GetGrantedByEffectContext().IsValid() ? GetGrantedByEffectContext().GetOriginalInstigatorAbilitySystemComponent() 
+		: ActorInfo->AbilitySystemComponent.Get();
+		if (InstigatorASC)
+		{
+			InstigatorASC->GetOwnedGameplayTags(SourceTags);
+		}
+		
 		FGameplayTagContainer TargetTags;
 		FGameplayTagContainer RelevantActivationTags;
 		GetAbilitySystemComponentFromActorInfo()->GetOwnedGameplayTags(TargetTags);

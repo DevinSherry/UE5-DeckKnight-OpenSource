@@ -1147,6 +1147,12 @@ bool UGASC_DamagePipelineSubsystem::ApplyDamageOverTimeToTarget(
 {
 	FGameplayEffectSpecHandle DamageSpecHandle = ConstructDamageEffectSpecHandle(
 		Instigator, EGameplayEffectDurationType::HasDuration, EffectOverTimeContext);
+	
+	if (EffectOverTimeContext.bApplyValueOverTotalDuration)
+	{
+		float CacheDamage = Damage;
+		Damage = CacheDamage / (EffectOverTimeContext.EffectDuration/EffectOverTimeContext.EffectPeriod);
+	}
 
 	if (DamageSpecHandle.IsValid())
 	{
@@ -1166,6 +1172,12 @@ bool UGASC_DamagePipelineSubsystem::ApplyHealOverTimeToTarget(
 	FGameplayEffectSpecHandle HealOverTimeSpecHandle = ConstructHealingEffectSpecHandle(
 		Instigator, EGameplayEffectDurationType::HasDuration, EffectOverTimeContext);
 
+	if (EffectOverTimeContext.bApplyValueOverTotalDuration)
+	{
+		float CacheHealing = Heal;
+		Heal = CacheHealing / (EffectOverTimeContext.EffectDuration/EffectOverTimeContext.EffectPeriod);
+	}
+	
 	if (HealOverTimeSpecHandle.IsValid())
 	{
 		return ApplyHealToTarget_Internal(Target, Instigator, Heal, HealContext, HealOverTimeSpecHandle);

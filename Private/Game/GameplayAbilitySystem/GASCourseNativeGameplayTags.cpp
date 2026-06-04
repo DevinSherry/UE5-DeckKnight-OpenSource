@@ -108,4 +108,8 @@ UE_DEFINE_GAMEPLAY_TAG(Event_AbilityActivation_Fail, "Event.Ability.Activation.F
 UE_DEFINE_GAMEPLAY_TAG(Event_AbilityActivation_CantAffordCost, "Event.Ability.Activation.CantAffordCost");
 
 
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Weapon_Bow_BlockArrowRegeneration, "Status.Weapon.Bow.Block.ArrowRegeneration",
+	"When applied, arrow regeneration is blocked.")
+
+
 FGASCourseNativeGameplayTags FGASCourseNativeGameplayTags::GameplayTags;

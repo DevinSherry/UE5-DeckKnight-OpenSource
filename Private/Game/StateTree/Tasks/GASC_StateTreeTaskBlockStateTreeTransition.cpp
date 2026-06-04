@@ -35,6 +35,8 @@ static UStateTreeComponent* GetStateTree(APlayerController* PC)
 
 FStateTreeTask_GASCBlockStateTreeTransition::FStateTreeTask_GASCBlockStateTreeTransition()
 {
+	bShouldStateChangeOnReselect = false;
+
 #if WITH_EDITORONLY_DATA
 	bConsideredForCompletion = false;
 #endif
@@ -64,6 +66,8 @@ EStateTreeRunStatus FStateTreeTask_GASCBlockStateTreeTransition::EnterState(
 		return EStateTreeRunStatus::Failed;
 	}
 	
+	World->GetTimerManager().ClearTimer(Data.DurationTimerHandle);
+	
 	UStateTreeComponent* ST = GetStateTree(PC);
 	UGASC_InputBufferComponent* InputBuffer = GetInputBuffer(PC);
 
@@ -72,8 +76,6 @@ EStateTreeRunStatus FStateTreeTask_GASCBlockStateTreeTransition::EnterState(
 		return EStateTreeRunStatus::Failed;
 	}
 	
-	//Block input
-
 	switch (Data.DurationType)
 	{
 	case EGASC_TaskDurationType::HasDuration:
@@ -125,10 +127,6 @@ void FStateTreeTask_GASCBlockStateTreeTransition::ExitState(
 			{
 				World->GetTimerManager().ClearTimer(Data.DurationTimerHandle);
 			}
-			if (UGASC_InputBufferComponent* InputBufferComponent = GetInputBuffer(PC))
-			{
-				//Unblock
-			}
 		}
 	}
 
@@ -161,6 +159,7 @@ EStateTreeRunStatus FStateTreeTask_GASCBlockStateTreeTransition::Tick(
 		if (!World->GetTimerManager().IsTimerActive(Data.DurationTimerHandle))
 		{
 			Data.bBlockTransition = false;
+			World->GetTimerManager().ClearTimer(Data.DurationTimerHandle);
 			return EStateTreeRunStatus::Succeeded;
 		}
 	}

@@ -77,28 +77,6 @@ void UGASC_MeleeTrace_NotifyState::NotifyBegin(USkeletalMeshComponent* MeshComp,
 				default:
 					UE_LOG(LOG_GASC_MeleeTraceSubsystem, Warning, TEXT("No Skeletal Mesh Component found!"));
 				}
-				/*
-				if (MeshComp->DoesSocketExist(StartSocket) && MeshComp->DoesSocketExist(EndSocket))
-				{
-					DebugMeshComponent = MeshComp;
-				}
-				else
-				{
-					TArray<USceneComponent*> ChildrenComponents;
-					MeshComp->GetChildrenComponents(true, ChildrenComponents);
-					for (USceneComponent* ChildComponent : ChildrenComponents)
-					{
-						if (auto* TypedMeshComponent = Cast<UMeshComponent>(ChildComponent))
-						{
-							if (TypedMeshComponent->DoesSocketExist(StartSocket)
-								&& TypedMeshComponent->DoesSocketExist(EndSocket))
-							{
-								DebugMeshComponent = TypedMeshComponent;
-							}
-						}
-					}
-				}
-				*/
 			}
 		}
 	}
@@ -124,6 +102,11 @@ void UGASC_MeleeTrace_NotifyState::NotifyTick(USkeletalMeshComponent* MeshComp, 
 		UGASC_MeleeTrace_Subsystem* MeleeTrace_Subsystem = EditorWorld->GetSubsystem<UGASC_MeleeTrace_Subsystem>();
 
 		FCollisionShape CollisionShape;
+		if (!MeleeTraceNotifyID.IsValid())
+		{
+			return;
+		}
+		
 		if (MeleeTraceSubsystemData.TraceShape)
 		{
 			CollisionShape = MeleeTraceSubsystemData.TraceShape->CreateCollisionShape();

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Animation/AnimNotifies/AnimNotifyState.h"
+#include "Game/Character/Components/WeaponInventoryComponent/GASC_WeaponInventoryComponent.h"
 #include "GASCourse/Public/Game/Systems/WeaponTrails/GASC_WeaponTrails_DataAsset.h"
 #include "GASC_WeaponTrail_AnimNotifyState.generated.h"
 
@@ -31,6 +32,12 @@ class GASCOURSE_API UGASC_WeaponTrail_AnimNotifyState : public UAnimNotifyState
 	// The socket within our mesh component to attach to when we spawn the Niagara component
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NiagaraSystem, meta = (ToolTip = "The socket or bone to attach the system to", AnimNotifyBoneName = "true"))
 	FName SocketName;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NiagaraSystem, meta = (DisplayName = "Use Weapon Transform", ToolTip = "Whether to use the weapon's transform of the socket or not."))
+	bool bTransformByWeaponSocket = false;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NiagaraSystem, meta = (DisplayName = "Weapon Index", ToolTip = "The index of the weapon to use for the trail."))
+	int32 WeaponIndex = 0;
 
 	// Offset from the socket / bone location
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NiagaraSystem, meta = (ToolTip = "Offset from the socket or bone to place the Niagara system"))
@@ -57,10 +64,16 @@ private:
 
 	UPROPERTY()
 	UNiagaraComponent* WeaponTrailNiagaraComponent = nullptr;
+	
+	UPROPERTY()
+	UGASC_WeaponInventoryComponent* WeaponInventoryComponent = nullptr;
 
 	void SetWeaponTrailMaterialInterface(UNiagaraComponent* InWeaponTrailNiagaraComponent) const;
 	void SetWeaponTrailColorArrayAtTime(UNiagaraComponent* InWeaponTrailNiagaraComponent, float InTime) const;
 	void SetWeaponTrailLifeTime(UNiagaraComponent* InWeaponTrailNiagaraComponent, float InLifeTime) const;
+	void SetWeaponTrailRibbonWidth(UNiagaraComponent* InWeaponTrailNiagaraComponent, AActor* OwnerActor, float InRibbonWidth = 40.0f) const;
+	
+	UGASC_CharacterWeapon_Base* GetCharacterWeaponFromInventory(AActor* OwningActor) const;
 
 	void DestroyWeaponTrailVFX() const;
 };

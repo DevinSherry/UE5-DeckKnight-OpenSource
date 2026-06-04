@@ -112,6 +112,7 @@ void UGASC_UI_DamageNumberPanel::NativeTick(const FGeometry& MyGeometry, float I
 		}
 
 		const FVector WorldLocation = Pair.Value;
+		
 		TOptional<FVector2D> LocalPos =
 			GetDamagePositionOnScreen(WorldLocation, Target, *DamageNumber);
 

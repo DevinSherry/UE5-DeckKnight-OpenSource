@@ -3,9 +3,13 @@
 #pragma once
 
 #include "GameplayTagContainer.h"
+#include "GASC_ProjectileData.h"
 #include "GameFramework/Actor.h"
 #include "Types/TargetingSystemTypes.h"
 #include "GASCourseProjectile.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProjectileLifetimeExpired);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnProjectileHit, FHitResult, HitResult);
 
 class TargetingSystemTypes;
 
@@ -34,11 +38,31 @@ public:
 	class USphereComponent* ProjectileCollisionComp;
 
 	/**
+	 * Represents the visual appearance of the projectile.
+	 * Handles the static mesh component used to render the projectile's visuals within the game world.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Projectile, meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* ProjectileVisualMeshComponent;
+
+	/**
+	 * Handles visual effects for the projectile using the Niagara particle system.
+	 * Manages rendering and simulation of particle-based effects associated with the projectile.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Projectile, meta = (AllowPrivateAccess = "true"))
+	class UNiagaraComponent* ProjectileNiagaraComponent;
+
+	/**
+	 * Handles the audio associated with the projectile.
+	 * Facilitates playing, controlling, and managing sound effects specific to the projectile's behavior and interactions in the game world.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Projectile, meta = (AllowPrivateAccess = "true"))
+	UAudioComponent* ProjectileAudioComponent;
+	/**
 	 * Represents the actor targeted by the projectile.
 	 * Used to designate or track the intended target during the projectile's behavior or trajectory.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite,  Category = Projectile, meta = (ExposeOnSpawn=true))
-	class AActor* TargetActor = nullptr;
+	AActor* TargetActor = nullptr;
 
 	//-----------------------ON HIT---------------------//
 	
@@ -68,7 +92,7 @@ public:
 	 * @return True if the target actor is considered an ally; false otherwise.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Projectile|OnHit")
-	bool IsHitTargetAnAlly(AActor* InHitActor);
+	bool IsActorAnAlly(AActor* InHitActor) const;
 
 	//-----------------------RICOCHET---------------------//
 
@@ -155,8 +179,15 @@ public:
 	 * Specifies the row handle for retrieving damage values from a curve table.
 	 * This handle is used to dynamically adjust projectile damage based on a predefined curve.
 	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Projectile|Damage")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Projectile|Damage", meta=(ExposeOnSpawn=true))
 	FCurveTableRowHandle DamageCurveRow;
+	
+	/**
+	 * Specifies the weapon level that affects the projectile's damage.
+	 * This property allows the projectile to scale its damage based on the weapon's level.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Projectile|Damage", meta=(ExposeOnSpawn=true))
+	int32 WeaponLevel = 1;
 
 	/**
 	 * Indicates whether the projectile can inflict damage on allied actors.
@@ -166,7 +197,6 @@ public:
 	bool bCanDamageAllies = false;
 
 	//-----------------------HEALING---------------------//
-	
 	/**
 	 * Applies healing to the target actor upon projectile impact.
 	 * This function is invoked to provide a healing effect to the hit target
@@ -206,7 +236,36 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Projectile|Healing")
 	bool bCanHealEnemies = false;
-
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Projectile|Data")
+	TObjectPtr<UGASC_ProjectileData> ProjectileDataAsset;
+	
+	UFUNCTION()
+	void InstantiateProjectileFromData();
+	
+	UFUNCTION()
+	void ReturnProjectileToPool();
+	
+	UFUNCTION()
+	bool InstantiateProjectileVisualData(const FProjectileVisualData& InProjectileVisualData);
+	
+	UFUNCTION()
+	bool InstantiateProjectileCollisionData(const FProjectileCollisionData& InProjectileCollisionData);
+	
+	UFUNCTION()
+	bool InstantiateProjectileMovementData(const FProjectileMovementData& InProjectileMovementData);
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile|Movement|Homing")
+	FProjectileHomingMovementData ProjectileHomingMovementData;
+	
+	UFUNCTION()
+	bool InstantiateProjectileHomingMovementData(const FProjectileHomingMovementData& InProjectileHomingMovementData);
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile|DamagePipeline")
+	FProjectileDamagePipelineData ProjectileDamagePipelineData;
+	
+	UFUNCTION()
+	void ApplyDamagePipelineToHitTarget(const FHitResult& InHitResult) const;
 
 protected:
 	/**
@@ -243,6 +302,12 @@ protected:
 	 */
 	UFUNCTION()
 	void OnTargetDeathCallback(FGameplayTag MatchingTag, int32 NewCount);
+	
+	UFUNCTION()
+	void OnProjectileLifetimeExpired();
+	
+	UFUNCTION()
+	void OnProjectileHit(const FHitResult& InHitResult);
 
 private:
 	
@@ -253,16 +318,33 @@ private:
 	TArray<AActor*> FoundTargets;
 
 	FDelegateHandle OnTargetDeathDelegateHandle;
+	
+	/** 
+	 * Handles the lifetime timer for the projectile, ensuring it is returned back into the pool after a specified duration.
+	 */
+	UPROPERTY()
+	FTimerHandle ProjectileLifetimeTimer;
+	
+	UPROPERTY()
+	FProjectileLifetimeExpired OnProjectileLifetimeExpiredDelegate;
 
+	UPROPERTY()
+	FOnProjectileHit OnProjectileHitDelegate;
+	
+	UPROPERTY()
+	FTimerHandle ProjectileHomingTimeoutTimer;
+	
+	UPROPERTY()
+	FTimerHandle ProjectileHomingDOTCheckTimer;
+	
 	UFUNCTION()
-	void EnableProjectileHoming();
+	void CheckDOTToTargetHoming();
+	
+	UFUNCTION()
+	void DisableProjectileHoming();
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
+	
 };

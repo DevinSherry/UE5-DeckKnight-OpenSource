@@ -11,6 +11,7 @@
 #include "GASCourse/GASCourseCharacter.h"
 #include "NativeGameplayTags.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
+#include "Game/Character/Player/GASCoursePlayerCharacter.h"
 
 static const float KISMET_TRACE_DEBUG_IMPACTPOINT_SIZE = 8.f;
 DEFINE_LOG_CATEGORY(LOG_GASC_MeleeTraceSubsystem);
@@ -413,6 +414,7 @@ void UGASC_MeleeTrace_Subsystem::RequestShapeMeleeTrace(AActor* Instigator, FGAS
 	NewMeleeTraceRequest.TraceId = TraceId;
 	NewMeleeTraceRequest.InstigatorActor = Instigator;
 	NewMeleeTraceRequest.TraceCollisionShape = NewMeleeTraceRequest.TraceShape->CreateCollisionShape();
+	NewMeleeTraceRequest.TraceObject = TraceData.TraceObject;
 	NewMeleeTraceRequest.SourceMeshComponent = GetMeshComponent(Instigator, NewMeleeTraceRequest);
 	NewMeleeTraceRequest.SwingStartTime = GetWorld()->GetTimeSeconds();
 	NewMeleeTraceRequest.PerActorHitStamps.Reset();
@@ -700,9 +702,24 @@ TWeakObjectPtr<UMeshComponent> UGASC_MeleeTrace_Subsystem::GetMeshComponent(cons
 	const FName StartSocketName = InTraceData.TraceSocket_Start == NAME_None ? FName("Root") : InTraceData.TraceSocket_Start;
 	const FName EndSocketName = InTraceData.TraceSocket_End == NAME_None ? FName("Root") : InTraceData.TraceSocket_End;
 
+	const AGASCoursePlayerCharacter* PlayerCharacter = Cast<const AGASCoursePlayerCharacter>(Actor);
 	switch (InTraceData.TraceObject)
 	{
 	case EGASC_MeleeTrace_TraceObject::Weapon:
+		
+		if (PlayerCharacter)
+		{
+			if (auto* TypedMeshComponent = Cast<UMeshComponent>(PlayerCharacter->ActiveWeaponMeshComponent()))
+			{
+				if (TypedMeshComponent->DoesSocketExist(StartSocketName)
+					&& TypedMeshComponent->DoesSocketExist(EndSocketName))
+				{
+					return TypedMeshComponent;
+				}
+				UE_LOGFMT(LOG_GASC_MeleeTraceSubsystem, Warning, "Mesh is missing socket {0} or {1} {2}", StartSocketName, EndSocketName, __FUNCTION__);
+			}
+			UE_LOGFMT(LOG_GASC_MeleeTraceSubsystem, Warning, "No skeletal mesh component found in inventory. {0}", __FUNCTION__);
+		}
 		
 		if (USkeletalMeshComponent* SkeletalMeshComponent = Actor->FindComponentByClass<USkeletalMeshComponent>())
 		{
@@ -744,6 +761,7 @@ FGASC_MeleeTrace_Subsystem_Data UGASC_MeleeTrace_Subsystem::CreateShapeDataFromR
 	TraceData.TraceDensity = RowData.TraceDensity;
 	TraceData.TraceSocket_Start = RowData.StartSocket;
 	TraceData.TraceSocket_End = RowData.EndSocket;
+	TraceData.TraceObject = RowData.TraceObject;
 	TraceData.HitActors.Reset();
 	TraceData.PreviousFrameSamples.Reset();
 	TraceData.TraceId = FGuid::NewGuid();

@@ -26,7 +26,7 @@ void FGASCourseAbilitySet_GrantedHandles::AddAttributeSet(UGASCourseAttributeSet
 	GrantedAttributeSets.Add(Set);
 }
 
-void FGASCourseAbilitySet_GrantedHandles::TakeFromAbilitySystem(UGASCourseAbilitySystemComponent* ASC)
+void FGASCourseAbilitySet_GrantedHandles::TakeFromAbilitySystem(UAbilitySystemComponent* ASC)
 {
 	check(ASC);
 
@@ -67,7 +67,7 @@ UGASCourseGameplayAbilitySet::UGASCourseGameplayAbilitySet(const FObjectInitiali
 {
 }
 
-void UGASCourseGameplayAbilitySet::GiveToAbilitySystem(UGASCourseAbilitySystemComponent* ASC, FGASCourseAbilitySet_GrantedHandles* OutGrantedHandles, UObject* SourceObject) const
+void UGASCourseGameplayAbilitySet::GiveToAbilitySystem(UAbilitySystemComponent* ASC, FGASCourseAbilitySet_GrantedHandles* OutGrantedHandles, UObject* SourceObject) const
 {
 	check(ASC);
 
@@ -150,7 +150,25 @@ void UGASCourseGameplayAbilitySet::GiveToAbilitySystem(UGASCourseAbilitySystemCo
 	}
 }
 
-bool UGASCourseGameplayAbilitySet::IsActiveAbilitySlotAvailable(UGASCourseAbilitySystemComponent* ASC, FGameplayTag& AvailableSlotTag) const
+void UGASCourseGameplayAbilitySet::GiveToAbilitySystem_BP(UAbilitySystemComponent* ASC)
+{
+	if (!GrantedHandles)
+	{
+		GrantedHandles = MakeUnique<FGASCourseAbilitySet_GrantedHandles>();
+	}
+	GiveToAbilitySystem(ASC, GrantedHandles.Get(), ASC->GetOwnerActor());
+}
+
+void UGASCourseGameplayAbilitySet::TakeFromAbilitySystem_BP(UAbilitySystemComponent* ASC)
+{
+	if (GrantedHandles)
+	{
+		GrantedHandles->TakeFromAbilitySystem(ASC);
+		GrantedHandles.Reset();
+	}
+}
+
+bool UGASCourseGameplayAbilitySet::IsActiveAbilitySlotAvailable(UAbilitySystemComponent* ASC, FGameplayTag& AvailableSlotTag) const
 {
 	if (ASC == nullptr)
 	{
@@ -167,9 +185,10 @@ bool UGASCourseGameplayAbilitySet::IsActiveAbilitySlotAvailable(UGASCourseAbilit
 		}
 
 		bool bHasActiveAbilitySlotAvailable = false;
+		UGASCourseAbilitySystemComponent* InternalASC = Cast<UGASCourseAbilitySystemComponent>(ASC);
 		for (const FGameplayTag& Tag : ActiveAbilitySlotTags)
 		{
-			if (IsValid(ASC->GetAbilityFromTaggedInput(Tag)))
+			if (IsValid(InternalASC->GetAbilityFromTaggedInput(Tag)))
 			{
 				continue;
 			}
@@ -178,9 +197,7 @@ bool UGASCourseGameplayAbilitySet::IsActiveAbilitySlotAvailable(UGASCourseAbilit
 			bHasActiveAbilitySlotAvailable = true;
 			break;
 		}
-
 		return bHasActiveAbilitySlotAvailable;
-			
 	}
 
 	return false;

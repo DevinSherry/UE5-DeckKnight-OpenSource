@@ -2,19 +2,15 @@
 
 #pragma once
 
-#include "GASCourseAbilitySystemComponent.h"
-#include "GASCourseGameplayAbility.h"
+#include "Engine/DataAsset.h"
+#include "Game/GameplayAbilitySystem/GASCourseGameplayAbility.h"
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseAttributeSet.h"
-#include "GASCourseGameplayAbilitySet.generated.h"
+#include "BaseWeaponAbilitySet.generated.h"
 
 class UGASCourseAttributeSet;
-/**
- * FGASCourseAbilitySet_GameplayAbility
- *
- *	Data used by the ability set to grant gameplay abilities.
- */
+
 USTRUCT(BlueprintType)
-struct FGASCourseAbilitySet_GameplayAbility
+struct FBaseWeaponAbilitySet_GameplayAbility
 {
 	GENERATED_BODY()
 
@@ -23,24 +19,10 @@ public:
 	// Gameplay ability to grant.
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UGASCourseGameplayAbility> Ability = nullptr;
-
-	// Level of ability to grant.
-	UPROPERTY(EditDefaultsOnly)
-	int32 AbilityLevel = 1;
-
-	// Tag used to process input for the ability.
-	UPROPERTY(EditDefaultsOnly, Meta = (Categories = "InputTag"))
-	mutable FGameplayTag InputTag;
-	
 };
 
-/**
- * FGASCourseAbilitySet_GameplayEffect
- *
- *	Data used by the ability set to grant gameplay effects.
- */
 USTRUCT(BlueprintType)
-struct FGASCourseAbilitySet_GameplayEffect
+struct FBaseWeaponAbilitySet_GameplayEffect
 {
 	GENERATED_BODY()
 
@@ -49,19 +31,10 @@ public:
 	// Gameplay effect to grant.
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<UGameplayEffect> GameplayEffect = nullptr;
-
-	// Level of gameplay effect to grant.
-	UPROPERTY(EditDefaultsOnly)
-	float EffectLevel = 1.0f;
 };
 
-/**
- * FGASCourseAbilitySet_AttributeSet
- *
- *	Data used by the ability set to grant attribute sets.
- */
 USTRUCT(BlueprintType)
-struct FGASCourseAbilitySet_AttributeSet
+struct FBaseWeaponAbilitySet_AttributeSet
 {
 	GENERATED_BODY()
 
@@ -72,13 +45,8 @@ public:
 
 };
 
-/**
- * FFGASCourseAbilitySet_GrantedHandles
- *
- *	Data used to store handles to what has been granted by the ability set.
- */
 USTRUCT(BlueprintType)
-struct FGASCourseAbilitySet_GrantedHandles
+struct FBaseWeaponAbilitySet_GrantedHandles
 {
 	GENERATED_BODY()
 
@@ -105,49 +73,43 @@ protected:
 	TArray<TObjectPtr<UGASCourseAttributeSet>> GrantedAttributeSets;
 };
 
-
 /**
- * UGASCourseAbilitySet
- *
- *	Non-mutable data asset used to grant gameplay abilities and gameplay effects.
+ * 
  */
-UCLASS(BlueprintType, Const)
-class GASCOURSE_API UGASCourseGameplayAbilitySet : public UDataAsset
+UCLASS()
+class GASCOURSE_API UBaseWeaponAbilitySet : public UPrimaryDataAsset
 {
 	GENERATED_BODY()
-
-public:
-
-	UGASCourseGameplayAbilitySet(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
-
+	
+	UBaseWeaponAbilitySet(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	
 	// Grants the ability set to the specified ability system component.
 	// The returned handles can be used later to take away anything that was granted.
-	void GiveToAbilitySystem(UAbilitySystemComponent* ASC, FGASCourseAbilitySet_GrantedHandles* OutGrantedHandles, UObject* SourceObject = nullptr) const;
+	void GiveToAbilitySystem(UAbilitySystemComponent* ASC, int32 WeaponLevel,
+		FBaseWeaponAbilitySet_GrantedHandles* OutGrantedHandles, 
+		UObject* SourceObject = nullptr) const;
 	
 	UFUNCTION(BlueprintCallable, Category="AbilitySet")
-	void GiveToAbilitySystem_BP(UAbilitySystemComponent* ASC);
+	void GiveToAbilitySystem_BP(UAbilitySystemComponent* ASC, int32 WeaponLevel);
 	
 	UFUNCTION(BlueprintCallable, Category="AbilitySet")
 	void TakeFromAbilitySystem_BP(UAbilitySystemComponent* ASC);
-
+	
 public:
 
 	// Gameplay abilities to grant when this ability set is granted.
 	UPROPERTY(EditDefaultsOnly, Category = "Gameplay Abilities", meta=(TitleProperty=Ability))
-	TArray<FGASCourseAbilitySet_GameplayAbility> GrantedGameplayAbilities;
+	TArray<FBaseWeaponAbilitySet_GameplayAbility> GrantedGameplayAbilities;
 
 	// Gameplay effects to grant when this ability set is granted.
 	UPROPERTY(EditDefaultsOnly, Category = "Gameplay Effects", meta=(TitleProperty=GameplayEffect))
-	TArray<FGASCourseAbilitySet_GameplayEffect> GrantedGameplayEffects;
+	TArray<FBaseWeaponAbilitySet_GameplayEffect> GrantedGameplayEffects;
 
 	// Attribute sets to grant when this ability set is granted.
 	UPROPERTY(EditDefaultsOnly, Category = "Attribute Sets", meta=(TitleProperty=AttributeSet))
-	TArray<FGASCourseAbilitySet_AttributeSet> GrantedAttributes;
-
-
-private:
-
-	bool IsActiveAbilitySlotAvailable(UAbilitySystemComponent* ASC, FGameplayTag& AvailableSlotTag) const;
+	TArray<FBaseWeaponAbilitySet_AttributeSet> GrantedAttributes;
 	
-	TUniquePtr<FGASCourseAbilitySet_GrantedHandles> GrantedHandles;
+private:
+	
+	TUniquePtr<FBaseWeaponAbilitySet_GrantedHandles> GrantedHandles;
 };
