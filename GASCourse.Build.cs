@@ -7,6 +7,9 @@ public class GASCourse : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		SetupGameplayDebuggerSupport(Target);
 		SetupIrisSupport(Target);
+		
+		PublicIncludePaths.Add("GASCourse/Public");
+		PrivateIncludePaths.Add("GASCourse/Private");
 
 		PublicDependencyModuleNames.AddRange(new[]
 		{
@@ -33,6 +36,7 @@ public class GASCourse : ModuleRules
 			"GameplayMessageRuntime", 
 			"ImGui",
 			"StateTreeModule",
+			"StructUtils",
 		});
 
 		PrivateDependencyModuleNames.AddRange(new[]

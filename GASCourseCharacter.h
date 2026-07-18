@@ -11,10 +11,10 @@
 #include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 #include "Game/Character/Components/Health/GASC_HealthComponent.h"
 #include "Game/GameplayAbilitySystem/GASAbilityTagRelationshipMapping.h"
-#include "Game/GameplayAbilitySystem/AttributeSets/GASCourseCharBaseAttributeSet.h"
 #include "Game/GameplayAbilitySystem/GameplayTagResponseTable/GASCourseStatusEffectTable.h"
 #include "GASCourseCharacter.generated.h"
 
+class UGASCStatusEffectListenerComp;
 class UGASCourseGameplayAbilitySet;
 class UInputAction;
 
@@ -81,23 +81,8 @@ public:
 	bool ActivateWhenGiven = false;
 };
 
-//--------------------------------------------------------------------------------------------------------------------------
-USTRUCT(BlueprintType)
-struct FCogSampleMontageTableRow : public FTableRowBase
-{
-	GENERATED_BODY()
-
-public:
-	FCogSampleMontageTableRow() {}
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	UAnimMontage* Montage = nullptr;
-};
-
-
 UCLASS(config=Game)
-class AGASCourseCharacter : public ACharacter, public IAbilitySystemInterface, public IGCAbilitySystemReplicationProxyInterface, public IGenericTeamAgentInterface
-//public ICogCommonDebugFilteredActorInterface
+class AGASCourseCharacter : public ACharacter, public IAbilitySystemInterface, public IGenericTeamAgentInterface, public IGCAbilitySystemReplicationProxyInterface
 {
 	GENERATED_BODY()
 
@@ -133,6 +118,8 @@ public:
 	UFUNCTION()
 	virtual bool SimulateInputActionFromBuffer(FGameplayTag InputTag);
 	
+	virtual void Jump() override;
+	
 protected:
 
 	friend class AGASCoursePlayerController;
@@ -150,55 +137,14 @@ protected:
 	/** Called for looking input */
 	virtual void Look(const FInputActionValue& Value);
 
-	/** Called for crouch input */
-	void Input_Crouch(const FInputActionValue& Value);
-
-	//Override these functions to add loose gameplay tag for status.crouching
-	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
-	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
-
 	//Override these functions in order to jump while crouched, if movement component allows for it.
 	virtual bool CanJumpInternal_Implementation() const override;
-	virtual void Jump() override;
 	
 	UFUNCTION()
 	void OnRep_ReplicationVarList();
 	
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing = OnRep_ReplicationVarList)
 	FReplicationProxyVarList ReplicationVarList;
-
-	/**
-	 * Sets the rotation of the character for the client.
-	 *
-	 * @param InRotation The new rotation of the character.
-	 */
-	UFUNCTION(BlueprintCallable, Reliable, Client)
-	void SetCharacterRotation_Client(FRotator InRotation);
-
-	/**
-	 * Sets the rotation of the character on the server.
-	 *
-	 * @param InRotation The new rotation of the character.
-	 */
-	UFUNCTION(Reliable, Server)
-	void SetCharacterRotation_Server(FRotator InRotation);
-
-	/**
-	 * Sets the rotation of the character for all clients.
-	 *
-	 * @param InRotation - The new rotation of the character.
-	 */
-	UFUNCTION(Reliable, NetMulticast)
-	void SetCharacterRotation_Multicast(FRotator InRotation);
-
-	/**
-	 * @brief FRotator variable that represents the rotation to be applied to an object in order to face a given direction.
-	 *
-	 * This variable is decorated with UPROPERTY to ensure replication and provide read-only access. It is also marked as Transient to prevent saving its value in the editor.
-	 * Use this variable to rotate an object based on a specified direction.
-	 */
-	UPROPERTY(Replicated, BlueprintReadOnly, Transient)
-	FRotator RotateToDirection;
 
 	
 protected:
@@ -213,7 +159,7 @@ protected:
 	 * The meta flag AllowPrivateAccess is set to true, allowing private access to this component.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = StatusEffects, meta = (AllowPrivateAccess = "true"))
-	class UGASCStatusEffectListenerComp* StatusEffectListenerComp;
+	TObjectPtr<UGASCStatusEffectListenerComp> StatusEffectListenerComp;
 
 	/**
 	 * @brief The CharacterHealthComponent variable represents the component responsible for handling the health functionality of the character.
@@ -222,7 +168,7 @@ protected:
 	 * The meta flag AllowPrivateAccess is set to true, allowing private access to this component.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = HealthComponent, meta = (AllowPrivateAccess = "true"))
-	UGASC_HealthComponent* CharacterHealthComponent;
+	TObjectPtr<UGASC_HealthComponent> CharacterHealthComponent;
 
 	/** The component responsible for handling the camera targeting functionality.
 	 *
@@ -230,10 +176,10 @@ protected:
 	 * The meta flag AllowPrivateAccess is set to true, allowing private access to this component.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class USceneComponent* TargetingSceneComponent;
+	TObjectPtr<USceneComponent> TargetingSceneComponent;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = MotionWarpComponent, meta = (AllowPrivateAccess = "true"))
-	UMotionWarpingComponent* MotionWarpComponent;
+	TObjectPtr<UMotionWarpingComponent> MotionWarpComponent;
 
 	void InitializeAbilitySystem(UGASCourseAbilitySystemComponent* InASC);
 		
@@ -280,9 +226,6 @@ public:
 	void IgnorePawnCollisionGameplayTagEventCallback(FGameplayTag MatchingTag, int32 NewCount);
 	
 	virtual UGASCourseAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	
-	UFUNCTION(BlueprintCallable, Category = "GASCourse|Character|Attributes")
-	float GetCrouchSpeed() const;
 
 	UFUNCTION(BlueprintCallable, Category = "GASCiyrse|Character|Attributes")
 	float GetJumpZVelocityOverride() const;
@@ -326,13 +269,11 @@ public:
 		return bIsAlive;
 	}
 	
-protected:
-	
 	UPROPERTY(ReplicatedUsing = Call_OnRep_ReplicatedAnimMontage)
 	FGameplayAbilityRepAnimMontage RepAnimMontageInfo;
 	
 	virtual void ForceReplication() override;
-
+	
 	UFUNCTION(NetMulticast, unreliable)
 	virtual void NetMulticast_InvokeGameplayCueExecuted_FromSpec(const FGameplayEffectSpecForRPC Spec, FPredictionKey PredictionKey) override;
 
@@ -362,18 +303,16 @@ protected:
 
 	UFUNCTION(NetMulticast, unreliable)
 	virtual void NetMulticast_InvokeGameplayCuesAddedAndWhileActive_WithParams(const FGameplayTagContainer GameplayCueTags, FPredictionKey PredictionKey, FGameplayCueParameters GameplayCueParameters) override;
-	  
+
 	virtual FGameplayAbilityRepAnimMontage& Call_GetRepAnimMontageInfo_Mutable() override;
 
 	UFUNCTION()
 	virtual void Call_OnRep_ReplicatedAnimMontage() override;
-
+	
 private:
 
 	ECollisionResponse DefaultCollisionResponseToPawn;
-
 	bool bIsAlive = true;
-	
 };
 
 

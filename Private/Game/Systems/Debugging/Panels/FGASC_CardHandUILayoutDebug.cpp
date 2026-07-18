@@ -2,6 +2,7 @@
 
 
 #include "Game/Systems/Debugging/Panels/FGASC_CardHandUILayoutDebug.h"
+#include "Game/HUD/Cards/GASC_UI_CardHand.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "imgui.h"
 

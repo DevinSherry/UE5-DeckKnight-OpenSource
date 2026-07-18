@@ -19,9 +19,24 @@ void UGASC_WeaponAttributeSet::PreAttributeChange(const FGameplayAttribute& Attr
 		AdjustAttributeForMaxChange(CurrentBowWeaponArrowCount, MaxBowWeaponArrowCount, NewValue, GetCurrentBowWeaponArrowCountAttribute());
 	}
 	
+	if (Attribute == GetMaxWeaponManaAttribute())
+	{
+		AdjustAttributeForMaxChange(CurrentWeaponMana, MaxWeaponMana, NewValue, GetCurrentWeaponManaAttribute());
+	}
+	
 	if (Attribute == GetCurrentBowWeaponArrowCountAttribute())
 	{
 		NewValue = FMath::Clamp<float>(NewValue, 0.0f, GetMaxBowWeaponArrowCount());
+	}
+	
+	if (Attribute == GetCurrentWeaponManaAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, GetMaxWeaponMana());
+	}
+	
+	if (Attribute == GetWeaponManaRegenDelayAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 10.0f);
 	}
 	
 }
@@ -68,5 +83,10 @@ void UGASC_WeaponAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 	if (Data.EvaluatedData.Attribute == GetArrowRegenerationTimeAttribute())
 	{
 		SetArrowRegenerationTime(FMath::Clamp(GetArrowRegenerationTime(), 0.1f, 5.0f));
+	}
+	
+	if (Data.EvaluatedData.Attribute == GetWeaponManaRegenAttribute())
+	{
+		SetWeaponManaRegen(FMath::Clamp(GetWeaponManaRegen(), 0.0f, GetMaxWeaponMana()));
 	}
 }

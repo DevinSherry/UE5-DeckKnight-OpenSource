@@ -217,100 +217,123 @@ void FGrantAbilityDynamicTask::PostEditNodeChangeChainProperty(const FPropertyCh
 #endif
 
 void FGrantAbilityDynamicTask::UpdateAbilityParamsSchema(
-    FInstancedPropertyBag& Bag,
-    TSubclassOf<UGameplayAbility> InAbilityClass)
+	FInstancedPropertyBag& Bag,
+	TSubclassOf<UGameplayAbility> InAbilityClass)
 {
-    if (!InAbilityClass)
-    {
-        Bag.Reset();
-        return;
-    }
+	if (!InAbilityClass)
+	{
+		Bag.Reset();
+		return;
+	}
 
-    UGameplayAbility* AbilityCDO =
-        InAbilityClass->GetDefaultObject<UGameplayAbility>();
+	UGameplayAbility* AbilityCDO =
+		InAbilityClass->GetDefaultObject<UGameplayAbility>();
 
-    if (!AbilityCDO)
-    {
-        Bag.Reset();
-        return;
-    }
+	if (!AbilityCDO)
+	{
+		Bag.Reset();
+		return;
+	}
 
-    TArray<FPropertyBagPropertyDesc> Descs;
+	TArray<FPropertyBagPropertyDesc> Descs;
 
-    if (UBlueprintGeneratedClass* BPClass =
-        Cast<UBlueprintGeneratedClass>(InAbilityClass))
-    {
-        for (TFieldIterator<FProperty> It(
-                 BPClass, EFieldIteratorFlags::IncludeSuper);
-             It; ++It)
-        {
-            FProperty* Prop = *It;
+	if (UBlueprintGeneratedClass* BPClass =
+		Cast<UBlueprintGeneratedClass>(InAbilityClass))
+	{
+		for (TFieldIterator<FProperty> It(BPClass, EFieldIteratorFlags::IncludeSuper); It; ++It)
+		{
+			FProperty* Prop = *It;
 
+			if (!Prop)
+			{
+				continue;
+			}
 
-        	// Only Blueprint visible
-        	if (!Prop->HasAnyPropertyFlags(CPF_BlueprintVisible))
-        		continue;
+			// Only Blueprint-visible properties.
+			if (!Prop->HasAnyPropertyFlags(CPF_BlueprintVisible))
+			{
+				continue;
+			}
 
-        	// Must be editable (somewhere)...
-        	if (!Prop->HasAnyPropertyFlags(CPF_Edit))
-        		continue;
+			// Must be editable.
+			if (!Prop->HasAnyPropertyFlags(CPF_Edit))
+			{
+				continue;
+			}
 
-        	// ...and must be editable on instances (public/external editing intent)
-        	if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance)) // not instance editable
-        		continue;
+			// Must be editable on instances.
+			if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance))
+			{
+				continue;
+			}
 
-        	// Optional: if you ONLY want instance-editable (not defaults-only)
-        	if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnTemplate)) // template-only restrictions
-        		continue;
+			// Skip template-only/defaults-only properties.
+			if (Prop->HasAnyPropertyFlags(CPF_DisableEditOnTemplate))
+			{
+				continue;
+			}
 
-        	// Skip deprecated
-        	if (Prop->HasAnyPropertyFlags(CPF_Deprecated))
-        		continue;
+			// Skip deprecated properties.
+			if (Prop->HasAnyPropertyFlags(CPF_Deprecated))
+			{
+				continue;
+			}
 
-            FPropertyBagPropertyDesc Desc(Prop->GetFName(), Prop);
-            if (Desc.ValueType != EPropertyBagPropertyType::None)
-            {
-                Descs.Add(MoveTemp(Desc));
-            }
-        }
-    }
+			FPropertyBagPropertyDesc Desc(Prop->GetFName(), Prop);
+
+			if (Desc.ValueType != EPropertyBagPropertyType::None)
+			{
+				Descs.Add(MoveTemp(Desc));
+			}
+		}
+	}
 
 	FInstancedPropertyBag OldBag = Bag;
-    const UPropertyBag* BagStruct =
-        UPropertyBag::GetOrCreateFromDescs(Descs);
 
-    Bag.InitializeFromBagStruct(BagStruct);
+	const UPropertyBag* BagStruct =
+		UPropertyBag::GetOrCreateFromDescs(Descs);
+
+	Bag.InitializeFromBagStruct(BagStruct);
+
+	const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct();
+	if (!PBStruct)
+	{
+		return;
+	}
+
 	TArray<FName> PropertyNames;
+	PropertyNames.Reserve(PBStruct->GetPropertyDescs().Num());
 
-    const UPropertyBag* PBStruct = Bag.GetPropertyBagStruct();
-    if (!PBStruct)
-        return;
+	for (const FPropertyBagPropertyDesc& Desc : PBStruct->GetPropertyDescs())
+	{
+		PropertyNames.Add(Desc.Name);
+	}
 
-    for (const FPropertyBagPropertyDesc& Desc :
-         PBStruct->GetPropertyDescs())
-    {
-        FProperty* SrcProp =
-            AbilityCDO->GetClass()->FindPropertyByName(Desc.Name);
-
-        if (!SrcProp)
-            continue;
-
-        void* SrcPtr =
-            SrcProp->ContainerPtrToValuePtr<void>(AbilityCDO);
-
-        if (!SrcPtr)
-            continue;
-    	
-    	PropertyNames.Add(Desc.Name);
-
-        EPropertyBagResult Res =
-            Bag.SetValue(Desc.Name, SrcProp, AbilityCDO);
-
-        if (Res != EPropertyBagResult::Success)
-        {
-            // Optional: log mismatch
-        }
-    }
-	
+	// Preserve already-bound/user-edited values where names still match.
 	Bag.CopyMatchingValuesByName(OldBag, MakeConstArrayView(PropertyNames));
+
+	// Fill CDO defaults only for newly-added properties.
+	for (const FPropertyBagPropertyDesc& Desc : PBStruct->GetPropertyDescs())
+	{
+		if (OldBag.FindPropertyDescByName(Desc.Name))
+		{
+			continue;
+		}
+
+		FProperty* SrcProp =
+			AbilityCDO->GetClass()->FindPropertyByName(Desc.Name);
+
+		if (!SrcProp)
+		{
+			continue;
+		}
+
+		EPropertyBagResult Res =
+			Bag.SetValue(Desc.Name, SrcProp, AbilityCDO);
+
+		if (Res != EPropertyBagResult::Success)
+		{
+			// Optional: log type mismatch or unsupported property.
+		}
+	}
 }

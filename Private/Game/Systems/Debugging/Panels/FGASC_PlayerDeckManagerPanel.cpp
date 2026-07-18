@@ -6,10 +6,11 @@
 #include "ImGuiModule.h" // or your plugin’s header
 #include "Game/Character/Player/GASCoursePlayerState.h"
 #include "GASCourse/GASCourseCharacter.h"
+#include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
 
 TArray<FAssetData> FGASC_PlayerDeckManagerPanel::CachedCardDataAssets;
 TSoftObjectPtr<UCardDataAsset> FGASC_PlayerDeckManagerPanel::SelectedCardAsset;
-UDeckManagerComponent* FGASC_PlayerDeckManagerPanel::DeckManagerComponent = nullptr;
+TObjectPtr<UDeckManagerComponent> FGASC_PlayerDeckManagerPanel::DeckManagerComponent = nullptr;
 TMap<TWeakObjectPtr<UTexture>, FImGuiTextureHandle> FGASC_PlayerDeckManagerPanel::TextureHandles;
 TMap<TWeakObjectPtr<UBaseCardGameplayAbilitySet>, float> FGASC_PlayerDeckManagerPanel::CardLevelOverrides;
 bool FGASC_PlayerDeckManagerPanel::bFilterForEmptyOrMissingCardData = false;

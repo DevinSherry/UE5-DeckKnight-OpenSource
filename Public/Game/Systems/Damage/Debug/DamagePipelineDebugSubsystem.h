@@ -4,9 +4,10 @@
 
 #include "AttributeSet.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "../Pipeline/GASC_DamagePipelineTypes.h"
 #include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
 #include "DamagePipelineDebugSubsystem.generated.h"
+
+class UGASC_DamagePipelineTypes;
 
 DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_DamagePipelineDebugSubsystem, Log, All);
 

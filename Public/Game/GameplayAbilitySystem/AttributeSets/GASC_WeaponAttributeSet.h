@@ -58,5 +58,21 @@ public:
 	FGameplayAttributeData ArrowRegenerationCount = 1.0f;
 	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, ArrowRegenerationCount)
 	
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData CurrentWeaponMana;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, CurrentWeaponMana)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData MaxWeaponMana;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, MaxWeaponMana)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData WeaponManaRegen = 1.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, WeaponManaRegen)
+
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData WeaponManaRegenDelay = 1.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, WeaponManaRegenDelay)
+	
 	
 };

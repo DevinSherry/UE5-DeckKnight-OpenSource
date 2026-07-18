@@ -2,9 +2,14 @@
 
 #pragma once
 
-#include "Game/Character/Projectile/GASCourseProjectile.h"
+#include "Game/Projectile/GASC_ProjectileData.h"
+#include "Game/Projectile/GASC_ProjectileEventListener.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "GASC_ProjectilePoolingSubsystem.generated.h"
+
+struct FProjectileSpawnShapeBaseFragment;
+struct FInstancedStruct;
+class AGASCourseProjectile;
 
 /**
  * @class UGASC_ProjectilePoolingSubsystem
@@ -32,24 +37,19 @@ class GASCOURSE_API UGASC_ProjectilePoolingSubsystem : public UTickableWorldSubs
 {
 	GENERATED_BODY()
 	
+	UGASC_ProjectilePoolingSubsystem();
+	
 public:
-
-	virtual void Tick(float DeltaTime) override;
 
 	// USubsystem implementation Begin
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
-
-	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
-
-	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	
-	virtual TStatId GetStatId() const override
-	{
-		return GetStatID();
-	}
-
-public:
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+	
+	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	
 	UFUNCTION(BlueprintCallable)
 	AGASCourseProjectile* GetAvailableProjectile();
@@ -63,16 +63,42 @@ public:
 	UFUNCTION()
 	AGASCourseProjectile* AddProjectileToPool_Internal();
 	
-	UFUNCTION(BlueprintCallable)
-	AGASCourseProjectile* SpawnAndClaimProjectile(AActor* Owner, APawn* Instigator, const FTransform& SpawnTransform, UGASC_ProjectileData* InProjectileData, const FProjectileDamagePipelineData DamagePipelineData);
+	UFUNCTION(BlueprintCallable, meta = (AutoCreateRefTerm = "AdditionalProjectileFragments"))
+	AGASCourseProjectile* SpawnAndClaimProjectile(AActor* Instigator, const FTransform& SpawnTransform, UGASC_ProjectileData* InProjectileData, TSubclassOf<UGASC_ProjectileEventListener> EventListener, const TArray<FInstancedStruct>& AdditionalProjectileFragments);
+	
+	UFUNCTION(BlueprintCallable, meta = (AutoCreateRefTerm = "AdditionalProjectileFragments"))
+	TArray<AGASCourseProjectile*> SpawnAndClaimProjectilesInShape(AActor* Instigator, const FInstancedStruct Shape,
+		int32 SpawnCount, UGASC_ProjectileData* InProjectileData, TSubclassOf<UGASC_ProjectileEventListener> EventListener,
+		const TArray<FInstancedStruct>& AdditionalProjectileFragments);
+	
+	UFUNCTION()
+	AGASCourseProjectile* ClaimProjectileFromPool_Internal();
+	
+	UFUNCTION()
+	TArray<AGASCourseProjectile*> ClaimProjectilesFromPool(int32 Count);
+	
+	UFUNCTION()
+	void ActivateProjectileFromPool_Internal(AGASCourseProjectile* ProjectileToActivate, AActor* Instigator, const FTransform& SpawnTransform, UGASC_ProjectileData* InProjectileData, TSubclassOf<UGASC_ProjectileEventListener> EventListener, const TArray<FInstancedStruct>& AdditionalProjectileFragments);
+	
+	UFUNCTION()
+	void ConstructShapeSpawnTransforms(const FInstancedStruct& ShapeFragment, const FVector& SpawnOrigin, const TWeakObjectPtr<AActor> Instigator, TArray<FTransform>& OutSpawnTransforms, const int32 Count = 1);
 	
 	UFUNCTION(BlueprintCallable)
-	AGASCourseProjectile* SpawnAndClaimProjectile_Homing(AActor* Owner, APawn* Instigator, const FTransform& SpawnTransform, UGASC_ProjectileData* InProjectileData, const FProjectileDamagePipelineData DamagePipelineData, const FProjectileHomingMovementData HomingMovementData);
+	int32 GetNumberOfAvailableProjectilesInPool() const
+	{
+		return AvailableProjectilePool.Num();
+	}
+	
+	UFUNCTION()
+	FProjectileGroup& GetProjectileGroup(const FGuid GroupId)
+	{
+		return *ProjectileGroupMap.Find(GroupId);
+	}
 	
 protected:
 	
 	UPROPERTY()
-	TArray<TObjectPtr<AGASCourseProjectile>> ProjectilePool;
+	TSet<TObjectPtr<AGASCourseProjectile>> ProjectilePool;
 	
 	UPROPERTY()
 	TArray<TObjectPtr<AGASCourseProjectile>> ActiveProjectilePool;
@@ -81,5 +107,8 @@ protected:
 	TArray<TObjectPtr<AGASCourseProjectile>> AvailableProjectilePool;
 	
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Projectile|Pooling")
-	TSubclassOf<AGASCourseProjectile> ProjectileClass = AGASCourseProjectile::StaticClass();;
+	TSubclassOf<AGASCourseProjectile> ProjectileClass;
+	
+	UPROPERTY()
+	TMap<FGuid, FProjectileGroup> ProjectileGroupMap;
 };

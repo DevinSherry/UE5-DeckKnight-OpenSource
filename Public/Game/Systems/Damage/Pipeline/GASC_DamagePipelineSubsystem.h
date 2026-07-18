@@ -3,11 +3,15 @@
 
 #pragma once
 
+#include "GameplayEffectTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "GASC_DamagePipelineTypes.h"
 #include "GASC_DamagePipelineDelegates.h"
 #include "GameplayEffect.h"
 #include "GASC_DamagePipelineSubsystem.generated.h"
+
+class UGameplayEffectExecutionCalculation;
+
 
 /* =======================================================================================
  *  Per-object dynamic delegates (BP)

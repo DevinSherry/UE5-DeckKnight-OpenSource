@@ -9,7 +9,7 @@ UGASC_DamageOverTimeGameplayEffect::UGASC_DamageOverTimeGameplayEffect(const FOb
 {
 	// Default to instant, we’ll override duration/period on the Spec if needed
 	DurationPolicy = EGameplayEffectDurationType::HasDuration;
-	bExecutePeriodicEffectOnApplication = true;
+	bExecutePeriodicEffectOnApplication = false;
 	DurationMagnitude = FScalableFloat(1.0f);
 
 	// Attach the damage execution ONCE

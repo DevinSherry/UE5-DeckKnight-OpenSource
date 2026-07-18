@@ -27,21 +27,8 @@ public:
 	 * It also enables replication for the component.
 	 */
 	UGASC_HealthComponent();
-
-
-protected:
-	virtual void BeginPlay() override;
 	
-	/**
-	 * GetLifetimeReplicatedProps is a method of the UGASC_HealthComponent class.
-	 * It is a const method that overrides the GetLifetimeReplicatedProps method of the UActorComponent class.
-	 * This method is responsible for defining the properties that will be replicated over the network.
-	 * It adds the CurrentHealth and MaxHealth properties to the OutLifetimeProps array using the DOREPLIFETIME macro.
-	 * The replicated properties will be automatically synchronized between the server and clients.
-	 *
-	 * @param OutLifetimeProps - The array of lifetime replicated properties to be populated.
-	 */
-	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+	virtual void BeginPlay() override;
 
 	/**
 	 * Initializes the view model for the UGASC_HealthComponent.
@@ -63,6 +50,9 @@ protected:
 	 * @see CharacterHealthContextName
 	 * @see HealthViewModel
 	 */
+	
+protected:
+	
 	UFUNCTION()
 	void InitializeViewModel();
 
@@ -70,7 +60,7 @@ protected:
 	 * @brief CurrentHealth is a float variable that represents the current health of the actor.
 	 * It is replicated using the "OnRep_CurrentHealth" function.
 	 */
-	UPROPERTY(BlueprintReadWrite, ReplicatedUsing="OnRep_CurrentHealth")
+	UPROPERTY(BlueprintReadWrite)
 	float CurrentHealth = 0.0f;
 
 	/**
@@ -98,44 +88,8 @@ protected:
 	 * @warning This variable should not be initialized or modified directly in external code.
 	 *          Use appropriate functions or methods within the associated class to manage the health value.
 	 */
-	UPROPERTY(BlueprintReadWrite, ReplicatedUsing="OnRep_MaxHealth")
+	UPROPERTY(BlueprintReadWrite)
 	float MaxHealth = 0.0f;
-
-	/**
-	 * Callback function invoked when the replicated property CurrentHealth is replicated to clients.
-	 * This function is automatically called by the engine when the replicated property changes.
-	 * It updates the current health in the health view model, if available.
-	 *
-	 * Usage:
-	 * - Override this function in subclasses of UGASC_HealthComponent to provide custom logic when the current health changes.
-	 * - Within the implementation of the overridden function, call the base implementation first, and then add any additional code specific to the subclass.
-	 * - Example usage:
-	 *   ```cpp
-	 *   void UMyHealthComponent::OnRep_CurrentHealth()
-	 *   {
-	 *       Super::OnRep_CurrentHealth();
-	 *
-	 *       // Custom logic here
-	 *   }
-	 *   ```
-	 * - Note that the base implementation of this function already sets the current health in the health view model if available, so you may not need to modify this behavior in most cases.
-	 */
-	UFUNCTION(BlueprintCallable)
-	virtual void OnRep_CurrentHealth();
-
-	/**
-	 * Called when the MaxHealth property is replicated from the server to the clients.
-	 * This method is automatically called by the Unreal Engine's replication system.
-	 * It updates the Max Health value in the HealthViewModel if it exists.
-	 *
-	 * @remarks
-	 * This method assumes that the HealthViewModel has been properly initialized and assigned.
-	 * If the HealthViewModel is null, no action will be taken.
-	 *
-	 * @see UGASC_HealthViewModel
-	 */
-	UFUNCTION(BlueprintCallable)
-	virtual void OnRep_MaxHealth();
 
 	/**
 	 * Initializes the health attributes for the server.
@@ -145,11 +99,8 @@ protected:
 	 *
 	 * @note This method should be called on the server only.
 	 */
-	UFUNCTION(Reliable, Server)
-	void Server_InitializeHealthAttributes();
-
-	UFUNCTION(Reliable, Client)
-	void Client_InitializeHealthAttributes();
+	UFUNCTION()
+	void InitializeHealthAttributes();
 
 	UPROPERTY(BlueprintAssignable, BlueprintCallable)
 	FOnHealthViewModelInstantiated OnHealthViewModelInstantiated;

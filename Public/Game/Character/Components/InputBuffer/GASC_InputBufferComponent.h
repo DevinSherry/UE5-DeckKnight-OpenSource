@@ -115,7 +115,7 @@ public:
 	TArray<TObjectPtr<UInputAction>> InputActionsToBuffer;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input Buffer",meta=(AssetDir="/Game/GASCourse/Game/Character/Input/Actions/"))
-	UInputAction* MovementInputActionToBuffer = nullptr;
+	TObjectPtr<UInputAction> MovementInputActionToBuffer;
 
 	
 	// Called by input delegates:

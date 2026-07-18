@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include "Game/HUD/Cards/GASC_UI_CardHand.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
+
+class UGASC_UI_CardHand;
 
 /**
  * @class FGASC_CardHandUILayoutDebug
@@ -30,7 +31,9 @@ public:
 	virtual void UpdateCachedPawns(TArray<TWeakObjectPtr<APawn>> Pawns) override;
 	
 	UWorld* World = nullptr;
-	UGASC_UI_CardHand* CardHand = nullptr;
+	
+
+	TObjectPtr<UGASC_UI_CardHand> CardHand;
 	
 private:
 	

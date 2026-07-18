@@ -9,8 +9,6 @@ Super(ObjectInitializer)
 {
 	// Create ability system component, and set it to be explicitly replicated
 	AbilitySystemComponent = CreateDefaultSubobject<UGASCourseAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
-	AbilitySystemComponent->SetIsReplicated(true);
-	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Full);
 }
 
 void AGASCourseNPC_Base::PossessedBy(AController* NewController)
@@ -20,7 +18,6 @@ void AGASCourseNPC_Base::PossessedBy(AController* NewController)
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
 		InitializeAbilitySystem(AbilitySystemComponent);
-		//RegisterViewModels();
 	}
 }
 

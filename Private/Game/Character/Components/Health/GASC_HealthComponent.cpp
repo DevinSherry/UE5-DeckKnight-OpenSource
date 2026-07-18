@@ -8,7 +8,6 @@
 #include "Game/GameplayAbilitySystem/AttributeSets/GASCourseHealthAttributeSet.h"
 #include "Game/HUD/ViewModels/Health/GASC_UVM_Health.h"
 #include "GASCourse/GASCourseCharacter.h"
-#include "Net/UnrealNetwork.h"
 
 // Sets default values for this component's properties
 UGASC_HealthComponent::UGASC_HealthComponent()
@@ -16,7 +15,6 @@ UGASC_HealthComponent::UGASC_HealthComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = false;
-	SetIsReplicatedByDefault(true);
 	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
 }
 
@@ -24,35 +22,9 @@ void UGASC_HealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	InitializeViewModel();
-
-	Server_InitializeHealthAttributes();
-	Client_InitializeHealthAttributes();
 }
 
-void UGASC_HealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
-{
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(UGASC_HealthComponent, CurrentHealth);
-	DOREPLIFETIME(UGASC_HealthComponent, MaxHealth);
-}
-
-void UGASC_HealthComponent::OnRep_CurrentHealth()
-{
-	if(HealthViewModel)
-	{
-		HealthViewModel->SetCurrentHealth(CurrentHealth);
-	}
-}
-
-void UGASC_HealthComponent::OnRep_MaxHealth()
-{
-	if(HealthViewModel)
-	{
-		HealthViewModel->SetMaxHealth(MaxHealth);
-	}
-}
-
-void UGASC_HealthComponent::Server_InitializeHealthAttributes_Implementation()
+void UGASC_HealthComponent::InitializeHealthAttributes()
 {
 	if(AGASCourseCharacter* OwningCharacter = Cast<AGASCourseCharacter>(GetOwner()))
 	{
@@ -62,25 +34,6 @@ void UGASC_HealthComponent::Server_InitializeHealthAttributes_Implementation()
 			{
 				CurrentHealth = HealthAttributes->GetCurrentHealth();
 				MaxHealth = HealthAttributes->GetMaxHealth();
-				OnRep_CurrentHealth();
-				OnRep_MaxHealth();
-			}
-		}
-	}
-}
-
-void UGASC_HealthComponent::Client_InitializeHealthAttributes_Implementation()
-{
-	if(AGASCourseCharacter* OwningCharacter = Cast<AGASCourseCharacter>(GetOwner()))
-	{
-		if(UAbilitySystemComponent* OwningASC = Cast<UAbilitySystemComponent>(OwningCharacter->GetAbilitySystemComponent()))
-		{
-			if(const UGASCourseHealthAttributeSet* HealthAttributes = Cast<UGASCourseHealthAttributeSet>(OwningASC->GetAttributeSet(HealthAttributeSet)))
-			{
-				CurrentHealth = HealthAttributes->GetCurrentHealth();
-				MaxHealth = HealthAttributes->GetMaxHealth();
-				OnRep_CurrentHealth();
-				OnRep_MaxHealth();
 			}
 		}
 	}
@@ -115,9 +68,5 @@ void UGASC_HealthComponent::InitializeViewModel()
 
 void UGASC_HealthComponent::HealthViewModelInstantiated_Implementation(UGASC_UVM_Health* InstantiatedViewModel)
 {
-	if (GetOwner()->HasAuthority())
-	{
-		Server_InitializeHealthAttributes();
-	}
-	Client_InitializeHealthAttributes();
+	InitializeHealthAttributes();
 }

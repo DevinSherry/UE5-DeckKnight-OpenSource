@@ -6,7 +6,6 @@
 #include "ScalableFloat.h"
 #include "Engine/DataAsset.h"
 #include "GASC_TargetingPreset_AOE.h"
-#include "Game/BlueprintLibraries/GameplayAbilitySystem/GASCourseASCBlueprintLibrary.h"
 #include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
 #include "TargetingSystem/TargetingPreset.h"
 #include "GASC_AreaOfEffectData.generated.h"

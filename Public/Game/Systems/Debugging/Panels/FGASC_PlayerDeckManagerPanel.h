@@ -4,7 +4,10 @@
 
 #include "ImGuiTextureHandle.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
-#include "Game/Character/Components/DeckManagerComponent/DeckManagerComponent.h"
+
+class UCardDataAsset;
+class UBaseCardGameplayAbilitySet;
+class UDeckManagerComponent;
 
 /*
 UENUM(BlueprintType)
@@ -67,7 +70,7 @@ private:
 	
 	static TArray<FAssetData> CachedCardDataAssets;
 	static TSoftObjectPtr<UCardDataAsset> SelectedCardAsset;
-	static UDeckManagerComponent* DeckManagerComponent;
+	static TObjectPtr<UDeckManagerComponent> DeckManagerComponent;
 	
 	static TMap<TWeakObjectPtr<UTexture>, FImGuiTextureHandle> TextureHandles;
 	

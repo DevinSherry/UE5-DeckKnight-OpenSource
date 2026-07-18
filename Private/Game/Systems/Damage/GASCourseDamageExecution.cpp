@@ -144,24 +144,28 @@ void UGASCourseDamageExecution::Execute_Implementation(
 
 	if (!bSkipDamageRecalculation)
 	{
-		float CriticalChance = 0.0f;
-		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
-			DamageStatics().CriticalChanceDef, EvaluationParameters, CriticalChance);
-		CriticalChance = FMath::Clamp(CriticalChance, 0.f, 1.f);
-
-		float CriticalDamageMultiplier = 0.0f;
-		ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
-			DamageStatics().CriticalDamageMultiplierDef, EvaluationParameters, CriticalDamageMultiplier);
-
-		if (FMath::FRand() <= CriticalChance)
+		//If this is self inflicted damage, do not roll for crits
+		if (TargetActor != SourceActor)
 		{
-			ModifiedDamage *= (1.f + CriticalDamageMultiplier);
-			Spec->AddDynamicAssetTag(Data_DamageCritical);
+			float CriticalChance = 0.0f;
+			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+				DamageStatics().CriticalChanceDef, EvaluationParameters, CriticalChance);
+			CriticalChance = FMath::Clamp(CriticalChance, 0.f, 1.f);
 
-			GASCourseContext->DamageLogEntry.Attributes.Add(
-				GASCourseDamageStatics().CriticalChanceProperty->GetName(), CriticalChance);
-			GASCourseContext->DamageLogEntry.Attributes.Add(
-				GASCourseDamageStatics().CriticalDamageMultiplierProperty->GetName(), CriticalDamageMultiplier);
+			float CriticalDamageMultiplier = 0.0f;
+			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
+				DamageStatics().CriticalDamageMultiplierDef, EvaluationParameters, CriticalDamageMultiplier);
+
+			if (FMath::FRand() <= CriticalChance)
+			{
+				ModifiedDamage *= (1.f + CriticalDamageMultiplier);
+				Spec->AddDynamicAssetTag(Data_DamageCritical);
+
+				GASCourseContext->DamageLogEntry.Attributes.Add(
+					GASCourseDamageStatics().CriticalChanceProperty->GetName(), CriticalChance);
+				GASCourseContext->DamageLogEntry.Attributes.Add(
+					GASCourseDamageStatics().CriticalDamageMultiplierProperty->GetName(), CriticalDamageMultiplier);
+			}
 		}
 
 		float DamageMultiplier = 0.0f;

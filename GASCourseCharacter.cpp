@@ -9,6 +9,7 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayAbilitySet.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "Game/Character/Components/GASCourseMovementComponent.h"
+#include "Game/GameplayAbilitySystem/AttributeSets/GASCourseCharBaseAttributeSet.h"
 #include "Net/UnrealNetwork.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -60,9 +61,14 @@ AGASCourseCharacter::AGASCourseCharacter(const class FObjectInitializer& ObjectI
 void AGASCourseCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(AGASCourseCharacter, RotateToDirection);
 	DOREPLIFETIME(AGASCourseCharacter, ReplicationVarList);
 	DOREPLIFETIME(AGASCourseCharacter, RepAnimMontageInfo);
+}
+
+FReplicationProxyVarList& AGASCourseCharacter::Call_GetReplicationProxyVarList_Mutable()
+{
+	MARK_PROPERTY_DIRTY_FROM_NAME(AGASCourseCharacter, ReplicationVarList, this);
+	return ReplicationVarList;
 }
 
 void AGASCourseCharacter::BeginPlay()
@@ -77,14 +83,7 @@ void AGASCourseCharacter::BeginPlay()
 	{
 		if(StatusEffectListenerComp)
 		{
-			if(GetLocalRole() == ROLE_Authority)
-			{
-				AbilitySystemComponent->OnGameplayEffectAppliedDelegateToSelf.AddUObject(StatusEffectListenerComp, &UGASCStatusEffectListenerComp::OnStatusEffectApplied_Server);
-			}
-			else
-			{
-				AbilitySystemComponent->OnActiveGameplayEffectAddedDelegateToSelf.AddUObject(StatusEffectListenerComp, &UGASCStatusEffectListenerComp::OnStatusEffectApplied_Client);
-			}
+			AbilitySystemComponent->OnGameplayEffectAppliedDelegateToSelf.AddUObject(StatusEffectListenerComp, &UGASCStatusEffectListenerComp::OnStatusEffectApplied_Server);
 			AbilitySystemComponent->OnAnyGameplayEffectRemovedDelegate().AddUObject(StatusEffectListenerComp, &UGASCStatusEffectListenerComp::OnStatusEffectRemoved);
 			StatusEffectListenerComp->ApplyDefaultActiveStatusEffects();
 		}
@@ -94,9 +93,6 @@ void AGASCourseCharacter::BeginPlay()
 void AGASCourseCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
-
-	//TODO: COG Implementations
-	//UnregisterFromAbilitySystemEvents();
 }
 
 void AGASCourseCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -189,16 +185,6 @@ void AGASCourseCharacter::IgnorePawnCollisionGameplayTagEventCallback(FGameplayT
 UGASCourseAbilitySystemComponent* AGASCourseCharacter::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
-}
-
-float AGASCourseCharacter::GetCrouchSpeed() const
-{
-	if (const UGASCourseCharBaseAttributeSet* BaseAttributeSet = GetAbilitySystemComponent()->GetSetChecked<UGASCourseCharBaseAttributeSet>())
-	{
-		return BaseAttributeSet->GetCrouchSpeed();
-	}
-	UE_LOG(LogTemp, Warning, TEXT("NO VALID ATTRIBUTE SET FOUND"));
-	return 0.0f;
 }
 
 float AGASCourseCharacter::GetJumpZVelocityOverride() const
@@ -311,52 +297,6 @@ void AGASCourseCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
-void AGASCourseCharacter::Input_Crouch(const FInputActionValue& Value)
-{
-	const UGASCourseAbilitySystemComponent* GASCourseASC = GetAbilitySystemComponent();
-	//Block any type of movement if character has tag Status.MovementInputBlocked
-	if(GASCourseASC->HasMatchingGameplayTag(Status_Block_MovementInput))
-	{
-		return;
-	}
-	const UCharacterMovementComponent* GASCharacterMovementComponent = CastChecked<UCharacterMovementComponent>(GetCharacterMovement());
-	
-	if (bIsCrouched || GASCharacterMovementComponent->bWantsToCrouch)
-	{
-		UnCrouch();
-	}
-	else if (GASCharacterMovementComponent->IsMovingOnGround())
-	{
-		Crouch();
-	}
-}
-
-void AGASCourseCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
-{
-	UGASCourseAbilitySystemComponent* GASCourseASC = GetAbilitySystemComponent();
-	//Block any type of movement if character has tag Status.MovementInputBlocked
-	if(GASCourseASC->HasMatchingGameplayTag(Status_Block_MovementInput))
-	{
-		return;
-	}
-	
-	GASCourseASC->SetLooseGameplayTagCount(Status_Crouching, 1);
-	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
-}
-
-void AGASCourseCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
-{
-	UGASCourseAbilitySystemComponent* GASCourseASC = GetAbilitySystemComponent();
-	//Block any type of movement if character has tag Status.MovementInputBlocked
-	if(GASCourseASC->HasMatchingGameplayTag(Status_Block_MovementInput))
-	{
-		return;
-	}
-	
-	GASCourseASC->SetLooseGameplayTagCount(Status_Crouching, 0);
-	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
-}
-
 bool AGASCourseCharacter::CanJumpInternal_Implementation() const
 {
 	const UGASCourseAbilitySystemComponent* GASCourseASC = GetAbilitySystemComponent();
@@ -371,34 +311,6 @@ bool AGASCourseCharacter::CanJumpInternal_Implementation() const
 	}
 	
 	return Super::CanJumpInternal_Implementation();
-}
-
-void AGASCourseCharacter::Jump()
-{
-	const UGASCourseMovementComponent* GASCharacterMovementComponent = CastChecked<UGASCourseMovementComponent>(GetCharacterMovement());
-	if(GASCharacterMovementComponent->bAllowJumpFromCrouch)
-	{
-		UnCrouch();
-	}
-	
-	Super::Jump();
-}
-
-void AGASCourseCharacter::PostInitializeComponents()
-{
-	Super::PostInitializeComponents();
-	DefaultCollisionResponseToPawn = GetCapsuleComponent()->GetCollisionResponseToChannel(ECC_Pawn);
-}
-
-FReplicationProxyVarList& AGASCourseCharacter::Call_GetReplicationProxyVarList_Mutable()
-{
-	MARK_PROPERTY_DIRTY_FROM_NAME(AGASCourseCharacter, ReplicationVarList, this);
-	return ReplicationVarList;
-}
-
-void AGASCourseCharacter::PossessedBy(AController* NewController)
-{
-	Super::PossessedBy(NewController);
 }
 
 void AGASCourseCharacter::OnRep_ReplicationVarList()
@@ -422,43 +334,37 @@ void AGASCourseCharacter::OnRep_ReplicationVarList()
 	}
 }
 
-bool AGASCourseCharacter::SimulateInputActionFromBuffer(FGameplayTag InputTag)
-{
-	return true;
-}
-
-void AGASCourseCharacter::SetCharacterRotation_Client_Implementation(FRotator InRotation)
-{
-	RotateToDirection = InRotation;
-	SetActorRotation(RotateToDirection);
-	ForceNetUpdate();
-	
-	if(GetLocalRole() == ROLE_Authority)
-	{
-		SetActorRotation(RotateToDirection);
-		ForceNetUpdate();
-	}
-	else
-	{
-		SetCharacterRotation_Server(RotateToDirection);
-	}
-}
-
-void AGASCourseCharacter::SetCharacterRotation_Server_Implementation(FRotator InRotation)
-{
-	SetCharacterRotation_Multicast(InRotation);
-	ForceNetUpdate();
-}
-
-void AGASCourseCharacter::SetCharacterRotation_Multicast_Implementation(FRotator InRotation)
-{
-	SetActorRotation(InRotation);
-	ForceNetUpdate();
-}
-
 void AGASCourseCharacter::ForceReplication()
 {
 	ForceNetUpdate();
+}
+
+void AGASCourseCharacter::Jump()
+{
+	const UGASCourseMovementComponent* GASCharacterMovementComponent = CastChecked<UGASCourseMovementComponent>(GetCharacterMovement());
+	if(GASCharacterMovementComponent->bAllowJumpFromCrouch)
+	{
+		UnCrouch();
+	}
+	
+	Super::Jump();
+}
+
+void AGASCourseCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	DefaultCollisionResponseToPawn = GetCapsuleComponent()->GetCollisionResponseToChannel(ECC_Pawn);
+	GetMesh()->SetGenerateOverlapEvents(true);
+}
+
+void AGASCourseCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+}
+
+bool AGASCourseCharacter::SimulateInputActionFromBuffer(FGameplayTag InputTag)
+{
+	return true;
 }
 
 void AGASCourseCharacter::NetMulticast_InvokeGameplayCueExecuted_FromSpec_Implementation(const FGameplayEffectSpecForRPC Spec, FPredictionKey PredictionKey)

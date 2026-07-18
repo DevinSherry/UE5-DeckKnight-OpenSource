@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerState.h"
 #include "GASCoursePlayerState.generated.h"
 
+class UDeckManagerComponent;
 /**
  * @class AGASCoursePlayerState
  * @brief Represents the player state in the GAS (Gameplay Ability System) course. It derives from APlayerState and implements the IAbilitySystemInterface.
@@ -23,8 +24,7 @@ public:
 	AGASCoursePlayerState();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = DeckManagement, meta = (AllowPrivateAccess = "true"))
-	class UDeckManagerComponent* DeckManagerComponent;
-	
+	TObjectPtr<UDeckManagerComponent> DeckManagerComponent;
 
 public:
 
@@ -35,7 +35,6 @@ public:
 	UDeckManagerComponent* GetDeckManagerComponent() const {return DeckManagerComponent;}
 	
 	virtual UGASCourseAbilitySystemComponent* GetAbilitySystemComponent() const override;
-	virtual bool ReplicateSubobjects(class UActorChannel *Channel, class FOutBunch *Bunch, FReplicationFlags *RepFlags) override;
 	
 	virtual void PostInitializeComponents() override;
 

@@ -3,9 +3,9 @@
 #pragma once
 
 #include "GameplayEffectTypes.h"
-#include "AbilitySystemComponent.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
 
+class UAbilitySystemComponent;
 
 /**
  * @class FGASCAttributesPanel

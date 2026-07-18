@@ -3,6 +3,15 @@
 
 #include "Game/Weapons/GASC_CharacterWeapon_Base.h"
 
+namespace GASCourse_WeaponSystemCVars
+{
+	static bool bIgnoreWeaponAmmo = false;
+	FAutoConsoleVariableRef CvarIgnoreWeaponAmmo(
+		TEXT("GASCourseDebug.Weapon.IgnoreWeaponAmmo"),
+		bIgnoreWeaponAmmo,
+		TEXT("When enabled, ignore ammo consumption for weapons. (Enabled: true, Disabled: false)"));
+	
+}
 
 UGASC_CharacterWeapon_Base::UGASC_CharacterWeapon_Base()
 {

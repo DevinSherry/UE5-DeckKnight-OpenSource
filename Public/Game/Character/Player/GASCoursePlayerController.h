@@ -4,8 +4,9 @@
 
 #include "GASCoursePlayerState.h"
 #include "GameFramework/PlayerController.h"
-#include "GASCourse/GASCourseCharacter.h"
 #include "GASCoursePlayerController.generated.h"
+
+class UStateTreeComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDamageDealt, const FGameplayEventData&, Payload);
 
@@ -22,7 +23,7 @@ class GASCOURSE_API AGASCoursePlayerController : public APlayerController
 
 	/** State Tree for Player*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = StateTree, meta = (AllowPrivateAccess = "true"))
-	class UStateTreeComponent* PlayerStateTreeComponent;
+	TObjectPtr<UStateTreeComponent> PlayerStateTreeComponent;
 
 	void InitializeStateTree();
 
@@ -32,12 +33,13 @@ public:
 	AGASCoursePlayerController(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
+protected:
+	
 	virtual void BeginPlayingState() override;
-
 	virtual void BeginPlay() override;
-
 	virtual void SetupInputComponent() override;
+	
+public:
 
 	UFUNCTION(BlueprintCallable, Category = "GASCourse|PlayerController")
 	AGASCoursePlayerState* GetGASCoursePlayerState() const;
@@ -49,16 +51,18 @@ public:
 	/** Method called after processing input */
 	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
 
+protected:
+	
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
 
+public:
+	
 	UFUNCTION(BlueprintCallable, Category = "GASCourse|PlayerController")
 	void OnDamageDealtCallback(const FGameplayEventData& Payload);
 	
 	UPROPERTY(BlueprintAssignable, Category="Events")
 	FOnDamageDealt OnDamageDealtDelegate;
-
-public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "GASCourse|HUD")
 	void CreateHUD();
@@ -110,13 +114,13 @@ public:
 	TArray<TEnumAsByte<EObjectTypeQuery>> HitResultUnderMouseCursorObjectTypes;
 
 	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
-
-protected:
-
+	
 	virtual void OnRep_PlayerState() override;
 	virtual void OnRep_Pawn() override;
 
 	virtual void Tick(float DeltaSeconds) override;
+	
+protected:
 
 	UFUNCTION(BlueprintImplementableEvent)
 	void OnDamageDealt(const FGameplayEventData& Payload);

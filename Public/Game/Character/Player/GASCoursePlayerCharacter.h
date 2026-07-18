@@ -10,6 +10,9 @@
 #include "Game/Input/GASC_InputAbilityChordedData.h"
 #include "GASCoursePlayerCharacter.generated.h"
 
+class UCameraComponent;
+class UGASC_InputBufferComponent;
+class USpringArmComponent;
 /**
  * The AGASCoursePlayerCharacter class represents a player character
  * implementation for a game, utilizing the Gameplay Ability System (GAS).
@@ -23,41 +26,41 @@ class GASCOURSE_API AGASCoursePlayerCharacter : public AGASCourseCharacter
 
 	/** MappingContext */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	class UInputMappingContext* DefaultMappingContextKBM;
+	TObjectPtr<UInputMappingContext> DefaultMappingContextKBM;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
-	class UInputMappingContext* DefaultMappingContextGamepad;
+	TObjectPtr<UInputMappingContext> DefaultMappingContextGamepad;
 	
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class USpringArmComponent* CameraBoom;
+	TObjectPtr<USpringArmComponent> CameraBoom;
 
 	/** Follow camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-	class UCameraComponent* FollowCamera;
+	TObjectPtr<UCameraComponent> FollowCamera;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GASCourse|Input", meta = (AllowPrivateAccess = "true"))
-	class UGASC_InputBufferComponent* InputBufferComponent;
+	TObjectPtr<UGASC_InputBufferComponent> InputBufferComponent;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "GASCourse|Camera Settings", meta = (AllowPrivateAccess = "true"))
-	UGASCoursePlayerCameraSettings* CameraSettingsData;
+	TObjectPtr<UGASCoursePlayerCameraSettings> CameraSettingsData;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UGASCourseInputConfig> InputConfig;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
-	UGASC_InputAbilityChordedData* AbilityChordData = nullptr;
+	TObjectPtr<UGASC_InputAbilityChordedData> AbilityChordData;
 
 public:
 
 	AGASCoursePlayerCharacter(const FObjectInitializer& ObjectInitializer);
 
 	/** Returns CameraBoom subobject **/
-	FORCEINLINE class USpringArmComponent* GetCameraBoom() const { return CameraBoom; }
+	FORCEINLINE TObjectPtr<USpringArmComponent> GetCameraBoom() const { return CameraBoom; }
 	/** Returns FollowCamera subobject **/
-	FORCEINLINE class UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+	FORCEINLINE TObjectPtr<UCameraComponent> GetFollowCamera() const { return FollowCamera; }
 	/** Returns InputBufferComponent subobject **/
-	FORCEINLINE class UGASC_InputBufferComponent* GetInputBufferComponent() const { return InputBufferComponent; }
+	FORCEINLINE TObjectPtr<UGASC_InputBufferComponent> GetInputBufferComponent() const { return InputBufferComponent; }
 
 	UFUNCTION(BlueprintPure, Category="GASCourse|Input")
 	UGASCourseInputConfig* GetInputConfig() const
@@ -101,8 +104,6 @@ public:
 		return MovementInputVector;
 	}
 
-protected:
-
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	//Add GASCourseAbilitySystemComponent on PossessedBy
@@ -118,13 +119,17 @@ protected:
 	
 	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
 	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
+	
+	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1, bool bForce = false) override;
+	
+	virtual bool SimulateInputActionFromBuffer(FGameplayTag InputTag) override;
 
+protected:
 	void BindASCInput();
 
 	virtual void Move(const FInputActionValue& Value) override;
 	virtual void Look(const FInputActionValue& Value) override;
-	
-	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1, bool bForce = false) override;
+
 	
 	UPROPERTY()
 	FVector2D MovementInputVector;
@@ -134,7 +139,6 @@ protected:
 	
 	void InitializeCamera();
 
-	virtual bool SimulateInputActionFromBuffer(FGameplayTag InputTag) override;
 	
 private:
 	

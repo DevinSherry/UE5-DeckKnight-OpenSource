@@ -102,7 +102,7 @@ float UGASCourseMovementComponent::GetMaxSpeed() const
 	{
 	case MOVE_Walking:
 	case MOVE_NavWalking:
-	return IsCrouching() ? Owner->GetCrouchSpeed() : MaxWalkSpeed;
+	return MaxWalkSpeed;
 	case MOVE_Falling:
 	return MaxWalkSpeed;
 	case MOVE_Swimming:

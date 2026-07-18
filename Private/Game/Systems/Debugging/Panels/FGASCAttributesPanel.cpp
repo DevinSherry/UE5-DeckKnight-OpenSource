@@ -2,7 +2,6 @@
 
 #include "Game/Systems/Debugging/Panels/FGASCAttributesPanel.h"
 #include "AbilitySystemComponent.h"
-#include "GameplayEffectExtension.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerState.h"
 #include "imgui.h"

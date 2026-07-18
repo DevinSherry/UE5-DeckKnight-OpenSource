@@ -92,6 +92,15 @@ UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_OnTargetHealed, "Event.Gameplay.OnTargetHe
 UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_OnAbilityGranted, "Event.Gameplay.OnAbilityGranted")
 UE_DEFINE_GAMEPLAY_TAG(Event_Gameplay_Reaction_OnHit, "Event.Gameplay.Reaction.OnHit")
 
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_OnProjectileHit, "Event.Projectile.OnHit",
+	"Instigator receives event when projectile hits something; event returns array and the projectile responsible")
+
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_OnProjectileRicochet, "Event.Projectile.OnRicochet",
+	"Instigator receives event when projectile ricochets; event returns array, the current number of ricochet, the projectile responsible")
+
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_OnProjectileFinished, "Event.Projectile.OnFinished",
+	"Instigator receives event when all projectiles are finished from a specific task. Returns array as target data.")
+
 UE_DEFINE_GAMEPLAY_TAG(Reaction_OnHit, "Reaction.Hit")
 
 UE_DEFINE_GAMEPLAY_TAG(Collision_IgnorePawn, "Collision.Ignore.Pawn")

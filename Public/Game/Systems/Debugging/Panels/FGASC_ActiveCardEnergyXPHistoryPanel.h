@@ -2,8 +2,10 @@
 
 #pragma once
 
-#include "Game/Systems/CardEnergy/ActiveCardEnergy/GASC_ActiveCardResourceManager.h"
 #include "Game/Systems/Debugging/Interface/IGASCDebugPanel.h"
+
+struct FActiveCardEnergyXPHistoryEntry;
+class UGASC_ActiveCardResourceManager;
 
 /**
  * @class FGASC_ActiveCardEnergyXPHistoryPanel
