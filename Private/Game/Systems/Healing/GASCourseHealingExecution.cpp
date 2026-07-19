@@ -71,17 +71,17 @@ void UGASCourseHealingExecution::Execute_Implementation(
 	{
 		return;
 	}
-	GASCourseContext->DamageLogEntry.HitInstigatorName = SourceActor->GetName();
-	GASCourseContext->DamageLogEntry.HitTargetName = TargetActor->GetName();
-	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(Spec.CapturedSourceTags.GetActorTags());
-	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(Spec.CapturedTargetTags.GetActorTags());
-	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AddTag(DamageType_Healing);
+	GASCourseContext->ResourceModLogEntry.HitInstigatorName = SourceActor->GetName();
+	GASCourseContext->ResourceModLogEntry.HitTargetName = TargetActor->GetName();
+	GASCourseContext->ResourceModLogEntry.HitInstigatorTagsContainer.AppendTags(Spec.CapturedSourceTags.GetActorTags());
+	GASCourseContext->ResourceModLogEntry.HitTargetTagsContainer.AppendTags(Spec.CapturedTargetTags.GetActorTags());
+	GASCourseContext->ResourceModLogEntry.HitContextTagsContainer.AddTag(DamageType_Healing);
 	if (Spec.DynamicGrantedTags.HasTagExact(Data_HealingLifeSteal))
 	{
-		GASCourseContext->DamageLogEntry.HitContextTagsContainer.AddTag(Data_HealingLifeSteal);
+		GASCourseContext->ResourceModLogEntry.HitContextTagsContainer.AddTag(Data_HealingLifeSteal);
 	}
-	GASCourseContext->DamageLogEntry.DamageInstigatorID = SourceActor->GetUniqueID();
-	GASCourseContext->DamageLogEntry.DamageTargetID = TargetActor->GetUniqueID();
+	GASCourseContext->ResourceModLogEntry.ResourceInstigatorID = SourceActor->GetUniqueID();
+	GASCourseContext->ResourceModLogEntry.ResourceTargetID = TargetActor->GetUniqueID();
 
 	// ==========================
 	// 1. BASE HEAL AMOUNT
@@ -93,7 +93,7 @@ void UGASCourseHealingExecution::Execute_Implementation(
 		0.0f);
 
 	// If still zero or negative → hard early out, no need to calculate anything else
-	GASCourseContext->DamageLogEntry.BaseDamageValue = Healing;
+	GASCourseContext->ResourceModLogEntry.BaseResourceValue = Healing;
 	if (Healing <= 0.f)
 	{
 		return;
@@ -119,7 +119,7 @@ void UGASCourseHealingExecution::Execute_Implementation(
 	float AllHealingCoefficient = 0.0f;
 	ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
 		HealingStatics().AllDamageHealingCoefficientDef, EvalParams, AllHealingCoefficient);
-	GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().AllDamageHealingCoefficientProperty->GetName(), 
+	GASCourseContext->ResourceModLogEntry.Attributes.Add(HealingStatics().AllDamageHealingCoefficientProperty->GetName(), 
 	AllHealingCoefficient);
 	
 	float ElementalHealingCoefficient = 0.0f;
@@ -131,7 +131,7 @@ void UGASCourseHealingExecution::Execute_Implementation(
 		{
 			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
 				HealingStatics().ElementalDamageHealingCoefficientDef, EvalParams, ElementalHealingCoefficient);
-			GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().ElementalDamageHealingCoefficientProperty->GetName(), 
+			GASCourseContext->ResourceModLogEntry.Attributes.Add(HealingStatics().ElementalDamageHealingCoefficientProperty->GetName(), 
 			ElementalHealingCoefficient);
 		}
 
@@ -139,7 +139,7 @@ void UGASCourseHealingExecution::Execute_Implementation(
 		{
 			ExecutionParams.AttemptCalculateCapturedAttributeMagnitude(
 				HealingStatics().PhysicalDamageHealingCoefficientDef, EvalParams, PhysicalHealingCoefficient);
-			GASCourseContext->DamageLogEntry.Attributes.Add(HealingStatics().PhysicalDamageHealingCoefficientProperty->GetName(), 
+			GASCourseContext->ResourceModLogEntry.Attributes.Add(HealingStatics().PhysicalDamageHealingCoefficientProperty->GetName(), 
 			PhysicalHealingCoefficient);
 		}
 	}
@@ -181,7 +181,7 @@ void UGASCourseHealingExecution::Execute_Implementation(
 		? FMath::CeilToFloat(TotalHealing)
 		: FMath::FloorToFloat(TotalHealing);
 	
-	GASCourseContext->DamageLogEntry.ModifiedDamageValue = TotalHealing;
+	GASCourseContext->ResourceModLogEntry.ModifiedResourceValue = TotalHealing;
 
 	// ==========================
 	// 6. APPLY TO ATTRIBUTE

@@ -4,14 +4,16 @@
 
 #include "AttributeSet.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "../Pipeline/GASC_DamagePipelineTypes.h"
 #include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
-#include "DamagePipelineDebugSubsystem.generated.h"
+#include "ResourcePipelineDebugSubsystem.generated.h"
+
+struct FResourceLogEntry;
+class UGASC_ResourcePipelineTypes;
 
 DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_DamagePipelineDebugSubsystem, Log, All);
 
 /**
- * @class UDamagePipelineDebugSubsystem
+ * @class UResourcePipelineDebugSubsystem
  * @brief A subsystem responsible for managing and debugging the damage pipeline in the game.
  *
  * The UDamagePipelineDebugSubsystem provides functionality to track, visualize, and debug
@@ -31,7 +33,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LOG_GASC_DamagePipelineDebugSubsystem, Log, All);
  * Note: Specific methods and functionality provided by this class will depend on the implementation.
  */
 UCLASS()
-class GASCOURSE_API UDamagePipelineDebugSubsystem : public UWorldSubsystem
+class GASCOURSE_API UResourcePipelineDebugSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 	
@@ -40,24 +42,24 @@ public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	
 	UFUNCTION()
-	void LogDamageEvent(const FDamageLogEntry& DamageContext);
+	void LogResourceModEvent(const FResourceLogEntry& ResourceModContext);
 	
 	UFUNCTION()
-	TArray<FDamageLogEntry> GetDamageLogEntries();
+	TArray<FResourceLogEntry> GetResourceModLogEntries();
 
 	UFUNCTION()
-	TArray<FDamageLogEntry> GetDamageLogEntriesForActorID(uint32 InActorID);
+	TArray<FResourceLogEntry> GetResourceLogEntriesForActorID(uint32 InActorID);
 	
 	UFUNCTION()
-	FDamageLogEntry GetDamageLogEntryByDamageID(uint32 InDamageID);
+	FResourceLogEntry GetResourceLogEntryByResourceID(uint32 InResourceID);
 	
 	UFUNCTION()
 	AActor* GetActorFromID(const uint32& InActorID);
 	
 	UFUNCTION()
-	void SimulateDamageFromID(uint32 DamageID);
+	void SimulateResourceModFromID(uint32 ResourceID);
 	
-	uint32 GenerateDebugDamageUniqueID();
+	uint32 GenerateDebugResourceModUniqueID();
 	
 	UPROPERTY()
 	const UGASC_AbilitySystemSettings* AbilitySystemSettings = nullptr;
@@ -65,12 +67,12 @@ public:
 private:
 	
 	UPROPERTY()
-	TArray<FDamageLogEntry> DamageLogEntries;
+	TArray<FResourceLogEntry> ResourceLogEntries;
 	
 	UPROPERTY()
 	TMap<FGameplayAttribute, float> InstigatorAttributesBackup;
 	
-	void TempApplyAttributeModToInstigator(FDamageLogEntry DamageLogEntry, AActor* InInstigator);
+	void TempApplyAttributeModToInstigator(FResourceLogEntry ResourceLogEntry, AActor* InInstigator);
 	void RestoreBackupAttributesToInstigator(AActor* InInstigator);
 	
 };

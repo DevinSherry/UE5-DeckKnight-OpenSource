@@ -3,7 +3,7 @@
 
 #include "Game/HUD/Healing/GASC_UI_Healing.h"
 #include "NiagaraUIComponent.h"
-#include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
+#include "Game/Systems/Damage/Statics/GASC_ResourcePipelineStatics.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "Kismet/KismetMathLibrary.h"
 
@@ -19,7 +19,7 @@ void UGASC_UI_Healing::NativeConstruct()
 
 	if (UWorld* World = OwningActor->GetWorld())
 	{
-		if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		if (UGASC_ResourcePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 		{
 			// Bind native received event
 			FOnHealingReceivedNative NativeDelegate;
@@ -38,7 +38,7 @@ void UGASC_UI_Healing::NativeDestruct()
 	{
 		if (UWorld* World = OwningActor->GetWorld())
 		{
-			if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+			if (UGASC_ResourcePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 			{
 				// Remove native listener
 				Subsys->UnregisterNativeHealingListener(this);
@@ -53,10 +53,10 @@ void UGASC_UI_Healing::NativeDestruct()
 	}
 }
 
-void UGASC_UI_Healing::OnHealingReceived_Event(const FDamageModificationContext& HealingContext)
+void UGASC_UI_Healing::OnHealingReceived_Event(const FResourceModificationContext& HealingContext)
 {
 	// Copy context for safety (in case struct is reused)
-	FDamageModificationContext CapturedContext = HealingContext;
+	FResourceModificationContext CapturedContext = HealingContext;
 
 	AsyncTask(ENamedThreads::GameThread, [this, CapturedContext]()
 	{

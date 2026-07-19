@@ -9,7 +9,7 @@
 #include "TargetingSystem/TargetingSubsystem.h"
 #include "Tasks/TargetingTask.h"
 #include "Types/TargetingSystemTypes.h"
-#include "Game/Systems/Damage/Statics/GASC_DamagePipelineStatics.h"
+#include "Game/Systems/Damage/Statics/GASC_ResourcePipelineStatics.h"
 
 bool UGASC_AreaOfEffectData::ProcessAreaOfEffect(AActor* Instigator, const FVector& Center)
 {
@@ -201,7 +201,7 @@ bool UGASC_AreaOfEffectData::ApplyAreaOfEffectOnActors(AActor* InInstigator, TAr
 				break;
 			}
 			AreaOfEffectValue = ProcessAreaOfEffectValueFallOffOnTarget(TargetingRequestHandle, TargetActor);
-			UGASC_DamagePipelineStatics::ApplyDamageToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamagePipelineContext);
+			UGASC_ResourcePipelineStatics::ApplyDamageToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamagePipelineContext);
 		}
 		else if (AreaOfEffectType == EGASC_AreaOfEffectType::Healing)
 		{
@@ -210,7 +210,7 @@ bool UGASC_AreaOfEffectData::ApplyAreaOfEffectOnActors(AActor* InInstigator, TAr
 				break;
 			}
 			AreaOfEffectValue = ProcessAreaOfEffectValueFallOffOnTarget(TargetingRequestHandle, TargetActor);
-			UGASC_DamagePipelineStatics::ApplyHealToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamagePipelineContext);
+			UGASC_ResourcePipelineStatics::ApplyHealToTarget(TargetActor, InInstigator, AreaOfEffectValue, AreaOfEffectDamagePipelineContext);
 		}
 	}
 

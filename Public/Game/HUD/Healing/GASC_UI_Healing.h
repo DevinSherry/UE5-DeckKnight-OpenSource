@@ -4,10 +4,10 @@
 
 #include "Blueprint/UserWidget.h"
 #include "NiagaraSystemWidget.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineTypes.h"
 #include "GASC_UI_Healing.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FHealingReceivedSignature, const FDamageModificationContext&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FHealingReceivedSignature, const FResourceModificationContext&);
 
 /**
  *
@@ -35,5 +35,5 @@ public:
 	float MaxNumberofNiagaraSpawn = 20.0f;
 	
 	UFUNCTION()
-	void OnHealingReceived_Event(const FDamageModificationContext& HealingContext);
+	void OnHealingReceived_Event(const FResourceModificationContext& HealingContext);
 };

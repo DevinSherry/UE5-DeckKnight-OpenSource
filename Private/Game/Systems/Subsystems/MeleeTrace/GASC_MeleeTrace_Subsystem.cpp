@@ -6,7 +6,7 @@
 #include "Game/Systems/Subsystems/MeleeTrace/Shapes/GASC_MeleeShape_Base.h"
 #include "DrawDebugHelpers.h"
 #include "CollisionQueryParams.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "NativeGameplayTags.h"
@@ -601,7 +601,7 @@ void UGASC_MeleeTrace_Subsystem::ProcessMeleeTraces(float DeltaTime)
 								if (auto* TargetASC = Cast<UGASCourseAbilitySystemComponent>(TargetCharacter->GetAbilitySystemComponent()))
 								{
 									// Damage pipeline (only once per actor)
-									if (auto* DamageSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+									if (auto* DamageSubsystem = GetWorld()->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 									{
 										FHitContext HitContext;
 										HitContext.HitTarget = TargetCharacter;

@@ -1,6 +1,6 @@
 #include "Game/GameplayAbilitySystem/Tasks/DamagePipeline/GASC_OnHitEventTask.h"
 #include "AbilitySystemComponent.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "Engine/World.h"
 
 UGASC_OnHitEventTask::UGASC_OnHitEventTask(const FObjectInitializer& ObjectInitializer)
@@ -82,7 +82,7 @@ void UGASC_OnHitEventTask::Activate()
 		return;
 	}
 
-	if (UGASC_DamagePipelineSubsystem* Pipeline = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+	if (UGASC_ResourcePipelineSubsystem* Pipeline = GetWorld()->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 	{
 		// Create local callback delegate
 		FOnHitApplied_Event LocalDelegate;
@@ -109,7 +109,7 @@ void UGASC_OnHitEventTask::Activate()
 
 void UGASC_OnHitEventTask::OnDestroy(bool AbilityEnded)
 {
-	if (UGASC_DamagePipelineSubsystem* Pipeline = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+	if (UGASC_ResourcePipelineSubsystem* Pipeline = GetWorld()->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 	{
 		// Must rebuild the same delegate to unregister
 		FOnHitApplied_Event LocalDelegate;

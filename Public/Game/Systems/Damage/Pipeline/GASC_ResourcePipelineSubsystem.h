@@ -3,11 +3,15 @@
 
 #pragma once
 
+#include "GameplayEffectTypes.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "GASC_DamagePipelineTypes.h"
-#include "GASC_DamagePipelineDelegates.h"
+#include "GASC_ResourcePipelineTypes.h"
+#include "GASC_ResourcePipelineDelegates.h"
 #include "GameplayEffect.h"
-#include "GASC_DamagePipelineSubsystem.generated.h"
+#include "GASC_ResourcePipelineSubsystem.generated.h"
+
+class UGameplayEffectExecutionCalculation;
+
 
 /* =======================================================================================
  *  Per-object dynamic delegates (BP)
@@ -72,7 +76,7 @@ struct FOnHealingEventListener
  * ======================================================================================= */
 
 UCLASS()
-class GASCOURSE_API UGASC_DamagePipelineSubsystem : public UWorldSubsystem
+class GASCOURSE_API UGASC_ResourcePipelineSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -142,12 +146,12 @@ public:
 	void Internal_BroadcastHitReceived(const FHitContext& Context);
 
 	// Damage
-	void Internal_BroadcastDamageApplied(const FDamageModificationContext& Context);
-	void Internal_BroadcastDamageReceived(const FDamageModificationContext& Context);
+	void Internal_BroadcastDamageApplied(const FResourceModificationContext& Context);
+	void Internal_BroadcastDamageReceived(const FResourceModificationContext& Context);
 
 	// Healing
-	void Internal_BroadcastHealingApplied(const FDamageModificationContext& Context);
-	void Internal_BroadcastHealingReceived(const FDamageModificationContext& Context);
+	void Internal_BroadcastHealingApplied(const FResourceModificationContext& Context);
+	void Internal_BroadcastHealingReceived(const FResourceModificationContext& Context);
 
 	/* ---------------------------------------------------------------------------------------
 	 *  High-level HIT interface
@@ -192,16 +196,16 @@ public:
 	void Internal_ForwardOnHitReceived(const FHitContext& Context);
 
 	UFUNCTION()
-	void Internal_ForwardOnDamageApplied(const FDamageModificationContext& Context);
+	void Internal_ForwardOnDamageApplied(const FResourceModificationContext& Context);
 
 	UFUNCTION()
-	void Internal_ForwardOnDamageReceived(const FDamageModificationContext& Context);
+	void Internal_ForwardOnDamageReceived(const FResourceModificationContext& Context);
 
 	UFUNCTION()
-	void Internal_ForwardOnHealingApplied(const FDamageModificationContext& Context);
+	void Internal_ForwardOnHealingApplied(const FResourceModificationContext& Context);
 
 	UFUNCTION()
-	void Internal_ForwardOnHealingReceived(const FDamageModificationContext& Context);
+	void Internal_ForwardOnHealingReceived(const FResourceModificationContext& Context);
 
 	/* ---------------------------------------------------------------------------------------
 	 *  Unregister helpers (cleanup)
@@ -300,4 +304,7 @@ public:
 
 	UFUNCTION()
 	bool ApplyFireDamageToTarget(TWeakObjectPtr<AActor> Target, TWeakObjectPtr<AActor> Instigator, float Damage, const FHitResult& HitResult, FDamagePipelineContext& DamageContext, bool bApplyBurnStack = true);
+	
+	//TODO
+	//WeaponMana
 };

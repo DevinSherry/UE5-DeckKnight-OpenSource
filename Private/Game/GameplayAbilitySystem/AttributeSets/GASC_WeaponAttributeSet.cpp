@@ -14,19 +14,9 @@ void UGASC_WeaponAttributeSet::PreAttributeChange(const FGameplayAttribute& Attr
 {
 	Super::PreAttributeChange(Attribute, NewValue);
 	
-	if(Attribute == GetMaxBowWeaponArrowCountAttribute())
-	{
-		AdjustAttributeForMaxChange(CurrentBowWeaponArrowCount, MaxBowWeaponArrowCount, NewValue, GetCurrentBowWeaponArrowCountAttribute());
-	}
-	
 	if (Attribute == GetMaxWeaponManaAttribute())
 	{
 		AdjustAttributeForMaxChange(CurrentWeaponMana, MaxWeaponMana, NewValue, GetCurrentWeaponManaAttribute());
-	}
-	
-	if (Attribute == GetCurrentBowWeaponArrowCountAttribute())
-	{
-		NewValue = FMath::Clamp<float>(NewValue, 0.0f, GetMaxBowWeaponArrowCount());
 	}
 	
 	if (Attribute == GetCurrentWeaponManaAttribute())
@@ -35,6 +25,16 @@ void UGASC_WeaponAttributeSet::PreAttributeChange(const FGameplayAttribute& Attr
 	}
 	
 	if (Attribute == GetWeaponManaRegenDelayAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 10.0f);
+	}
+	
+	if (Attribute == GetIncomingWeaponManaCritMultiplierAttribute())
+	{
+		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 10.0f);
+	}
+	
+	if (Attribute == GetIncomingWeaponManaKillMultiplierAttribute())
 	{
 		NewValue = FMath::Clamp<float>(NewValue, 0.0f, 10.0f);
 	}
@@ -60,29 +60,70 @@ void UGASC_WeaponAttributeSet::PostGameplayEffectExecute(const FGameplayEffectMo
 {
 	Super::PostGameplayEffectExecute(Data);
 	
-	// Get the Target actor, which should be our owner
+	const FGameplayEffectSpec& Spec                     = Data.EffectSpec;
+	const FGameplayEffectContextHandle& ContextHandle   = Spec.GetContext();
+	const FGameplayTagContainer& DynamicTags            = Spec.DynamicGrantedTags;
+	const FGameplayTagContainer& AssetTags              = Spec.GetDynamicAssetTags();
+	
+	// ---------------------------------------------------------------------
+	// Resolve target info once
+	// ---------------------------------------------------------------------
 	AActor* TargetActor = nullptr;
 	AController* TargetController = nullptr;
 	AGASCourseCharacter* TargetCharacter = nullptr;
-	if (Data.Target.AbilityActorInfo.IsValid() && Data.Target.AbilityActorInfo->AvatarActor.IsValid())
+	UGASCourseAbilitySystemComponent* TargetASC = nullptr;
+
+	if (Data.Target.AbilityActorInfo.IsValid())
 	{
-		TargetActor = Data.Target.AbilityActorInfo->AvatarActor.Get();
-		TargetController = Data.Target.AbilityActorInfo->PlayerController.Get();
-		TargetCharacter = Cast<AGASCourseCharacter>(TargetActor);
+		const FGameplayAbilityActorInfo* TargetInfo = Data.Target.AbilityActorInfo.Get();
+		TargetActor      = TargetInfo->AvatarActor.Get();
+		TargetController = TargetInfo->PlayerController.Get();
+		TargetCharacter  = Cast<AGASCourseCharacter>(TargetActor);
+
+		if (TargetCharacter)
+		{
+			TargetASC = Cast<UGASCourseAbilitySystemComponent>(TargetCharacter->GetAbilitySystemComponent());
+		}
 	}
 	
-	if (Data.EvaluatedData.Attribute == GetCurrentBowWeaponArrowCountAttribute())
+	// ---------------------------------------------------------------------
+	// Resolve source info once
+	// ---------------------------------------------------------------------
+	AActor* SourceActor = ContextHandle.IsValid() ? ContextHandle.GetInstigator() : nullptr;
+	AGASCourseCharacter* SourceCharacter = Cast<AGASCourseCharacter>(SourceActor);
+	UGASCourseAbilitySystemComponent* SourceASC =
+		ContextHandle.IsValid()
+			? Cast<UGASCourseAbilitySystemComponent>(ContextHandle.GetInstigatorAbilitySystemComponent())
+			: nullptr;
+
+	// Resolve world once
+	UWorld* World = nullptr;
+	if (TargetActor)
 	{
-		SetCurrentBowWeaponArrowCount(FMath::Clamp(GetCurrentBowWeaponArrowCount(), 0.0f, GetMaxBowWeaponArrowCount()));
+		World = TargetActor->GetWorld();
 	}
-	if (Data.EvaluatedData.Attribute == GetArrowRegenerationCountAttribute())
+	else if (SourceActor)
 	{
-		SetArrowRegenerationCount(FMath::Clamp(GetArrowRegenerationCount(), 0.0f, GetMaxBowWeaponArrowCount()));
+		World = SourceActor->GetWorld();
 	}
 	
-	if (Data.EvaluatedData.Attribute == GetArrowRegenerationTimeAttribute())
+	// =====================================================================
+	// WEAPON MANA BRANCH
+	// =====================================================================
+	
+	if (Data.EvaluatedData.Attribute == GetIncomingWeaponManaAttribute())
 	{
-		SetArrowRegenerationTime(FMath::Clamp(GetArrowRegenerationTime(), 0.1f, 5.0f));
+		const float LocalIncomingWeaponMana = GetIncomingWeaponMana();
+		SetIncomingWeaponMana(0.0f);
+		
+		const float OldWeaponMana = CurrentWeaponMana.GetCurrentValue();
+		const float NewWeaponMana = OldWeaponMana + LocalIncomingWeaponMana;
+		SetCurrentWeaponMana(NewWeaponMana);
+	}
+	
+	if (Data.EvaluatedData.Attribute == GetCurrentWeaponManaAttribute())
+	{
+		SetCurrentWeaponMana(FMath::Clamp(GetCurrentWeaponMana(), 0.0f, GetMaxWeaponMana()));
 	}
 	
 	if (Data.EvaluatedData.Attribute == GetWeaponManaRegenAttribute())

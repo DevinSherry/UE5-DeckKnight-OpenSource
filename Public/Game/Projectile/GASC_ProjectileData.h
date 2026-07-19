@@ -4,7 +4,7 @@
 
 #include "GameplayTagContainer.h"
 #include "Engine/DataAsset.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineTypes.h"
 #include "StructUtils/InstancedStruct.h"
 #include "GASC_ProjectileData.generated.h"
 

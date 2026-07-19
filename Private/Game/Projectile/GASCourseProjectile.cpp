@@ -123,7 +123,7 @@ void AGASCourseProjectile::ApplyDamagePipelineToHitTarget(AActor* OtherActor, co
 	const bool bCanDamageTarget = IsActorAnAlly(HitActor) ? ProjectileDamageFragment.bCanDamageAllies : true;
 	const bool bCanHealTarget = IsActorAnAlly(HitActor) ? true : ProjectileHealingFragment.bCanHealEnemies;
 	
-	UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem = GetWorld()->GetSubsystem<UGASC_DamagePipelineSubsystem>();
+	UGASC_ResourcePipelineSubsystem* DamagePipelineSubsystem = GetWorld()->GetSubsystem<UGASC_ResourcePipelineSubsystem>();
 	if (!DamagePipelineSubsystem)
 	{
 		return;
@@ -771,7 +771,7 @@ bool AGASCourseProjectile::InstantiateProjectileVisualFragment()
 				FStreamableDelegate::CreateLambda([this, Path]()
 				{
 					UNiagaraSystem* VFX = Cast<UNiagaraSystem>(Path.ResolveObject());
-					if (VFX && ProjectileNiagaraComponent)
+					if (VFX && IsValid(ProjectileNiagaraComponent))
 					{
 						ProjectileNiagaraComponent->SetAsset(VFX);
 						ProjectileNiagaraComponent->ReinitializeSystem();

@@ -8,7 +8,8 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "Game/GameplayAbilitySystem/GASCourseNativeGameplayTags.h"
 #include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/GameplayAbilitySystem/GameplayEffect/WeaponMana/GASC_WeaponManaInstantGameplayEffect.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "Game/Systems/Healing/GASCourseHealingExecution.h"
 
 struct GASCourseDamageStatics
@@ -89,13 +90,13 @@ void UGASCourseDamageExecution::Execute_Implementation(
 
 	auto* GASCourseContext = static_cast<FGASCourseGameplayEffectContext*>(BaseCtx);
 
-	GASCourseContext->DamageLogEntry.HitInstigatorName = SourceActor->GetName();
-	GASCourseContext->DamageLogEntry.HitTargetName = TargetActor->GetName();
-	GASCourseContext->DamageLogEntry.HitInstigatorTagsContainer.AppendTags(Spec->CapturedSourceTags.GetActorTags());
-	GASCourseContext->DamageLogEntry.HitTargetTagsContainer.AppendTags(Spec->CapturedTargetTags.GetActorTags());
-	GASCourseContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec->GetDynamicAssetTags());
-	GASCourseContext->DamageLogEntry.DamageInstigatorID = SourceActor->GetUniqueID();
-	GASCourseContext->DamageLogEntry.DamageTargetID = TargetActor->GetUniqueID();
+	GASCourseContext->ResourceModLogEntry.HitInstigatorName = SourceActor->GetName();
+	GASCourseContext->ResourceModLogEntry.HitTargetName = TargetActor->GetName();
+	GASCourseContext->ResourceModLogEntry.HitInstigatorTagsContainer.AppendTags(Spec->CapturedSourceTags.GetActorTags());
+	GASCourseContext->ResourceModLogEntry.HitTargetTagsContainer.AppendTags(Spec->CapturedTargetTags.GetActorTags());
+	GASCourseContext->ResourceModLogEntry.HitContextTagsContainer.AppendTags(Spec->GetDynamicAssetTags());
+	GASCourseContext->ResourceModLogEntry.ResourceInstigatorID = SourceActor->GetUniqueID();
+	GASCourseContext->ResourceModLogEntry.ResourceTargetID = TargetActor->GetUniqueID();
 
 	// ==========================
 	// 1. Base damage
@@ -110,7 +111,7 @@ void UGASCourseDamageExecution::Execute_Implementation(
 		0.0f);
 
 	float ModifiedDamage = BaseDamage;
-	GASCourseContext->DamageLogEntry.BaseDamageValue = BaseDamage;
+	GASCourseContext->ResourceModLogEntry.BaseResourceValue = BaseDamage;
 
 	// ==========================
 	// 2. Snapshot DoT handling
@@ -161,9 +162,9 @@ void UGASCourseDamageExecution::Execute_Implementation(
 				ModifiedDamage *= (1.f + CriticalDamageMultiplier);
 				Spec->AddDynamicAssetTag(Data_DamageCritical);
 
-				GASCourseContext->DamageLogEntry.Attributes.Add(
+				GASCourseContext->ResourceModLogEntry.Attributes.Add(
 					GASCourseDamageStatics().CriticalChanceProperty->GetName(), CriticalChance);
-				GASCourseContext->DamageLogEntry.Attributes.Add(
+				GASCourseContext->ResourceModLogEntry.Attributes.Add(
 					GASCourseDamageStatics().CriticalDamageMultiplierProperty->GetName(), CriticalDamageMultiplier);
 			}
 		}
@@ -175,7 +176,7 @@ void UGASCourseDamageExecution::Execute_Implementation(
 		if (DamageMultiplier > 0.f)
 		{
 			ModifiedDamage += (ModifiedDamage * DamageMultiplier);
-			GASCourseContext->DamageLogEntry.Attributes.Add(
+			GASCourseContext->ResourceModLogEntry.Attributes.Add(
 				DamageStatics().DamageMultiplierProperty->GetName(), DamageMultiplier);
 		}
 
@@ -188,7 +189,7 @@ void UGASCourseDamageExecution::Execute_Implementation(
 		{
 			ModifiedDamage *= (1.f - DamageResistance);
 			Spec->AddDynamicAssetTag(Data_DamageResisted);
-			GASCourseContext->DamageLogEntry.Attributes.Add(
+			GASCourseContext->ResourceModLogEntry.Attributes.Add(
 				DamageStatics().DamageResistanceMultiplierProperty->GetName(), DamageResistance);
 		}
 
@@ -220,21 +221,20 @@ void UGASCourseDamageExecution::Execute_Implementation(
 		// Cache snapshot damage for DoT ticks
 		Spec->SetSetByCallerMagnitude(Data_CachedDamage, ModifiedDamage);
 
-		GASCourseContext->DamageLogEntry.ModifiedDamageValue =
+		GASCourseContext->ResourceModLogEntry.ModifiedResourceValue =
 			ModifiedDamage - BaseDamage;
 	}
 
-	// ==========================
-	// 4. Lifesteal
-	// ==========================
-
 	if (UWorld* World = SourceActor->GetWorld())
 	{
-		if (UGASC_DamagePipelineSubsystem* DamagePipelineSubsystem =
-			World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		if (UGASC_ResourcePipelineSubsystem* DamagePipelineSubsystem =
+			World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 		{
 			if (ModifiedDamage > 0.f)
 			{
+				// ==========================
+				// 4. Lifesteal
+				// ==========================
 				World->GetTimerManager().SetTimerForNextTick(
 					FTimerDelegate::CreateLambda(
 						[this, DamagePipelineSubsystem, SourceActor, ModifiedDamage]()
@@ -247,6 +247,8 @@ void UGASCourseDamageExecution::Execute_Implementation(
 			}
 		}
 	}
+	
+	
 
 	// ==========================
 	// 5. Gameplay events & status

@@ -40,23 +40,23 @@ public:
 	virtual void PostAttributeBaseChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) const override;
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 	
-public:
+
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Weapon|Bow&Arrow|Attributes")
-	FGameplayAttributeData CurrentBowWeaponArrowCount;
-	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, CurrentBowWeaponArrowCount)
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData IncomingWeaponMana;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, IncomingWeaponMana)
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Weapon|Bow&Arrow|Attributes")
-	FGameplayAttributeData MaxBowWeaponArrowCount;
-	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, MaxBowWeaponArrowCount)
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData IncomingWeaponManaCritMultiplier = 1.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, IncomingWeaponManaCritMultiplier)
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Weapon|Bow&Arrow|Attributes")
-	FGameplayAttributeData ArrowRegenerationTime = 1.0f;
-	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, ArrowRegenerationTime)
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData IncomingWeaponManaKillMultiplier = 1.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, IncomingWeaponManaKillMultiplier)
 	
-	UPROPERTY(BlueprintReadOnly, Category = "Weapon|Bow&Arrow|Attributes")
-	FGameplayAttributeData ArrowRegenerationCount = 1.0f;
-	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, ArrowRegenerationCount)
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
+	FGameplayAttributeData OutgoingWeaponManaMultiplier = 0.0f;
+	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, OutgoingWeaponManaMultiplier)
 	
 	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
 	FGameplayAttributeData CurrentWeaponMana;
@@ -73,6 +73,5 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Weapon|General|Attributes")
 	FGameplayAttributeData WeaponManaRegenDelay = 1.0f;
 	ATTRIBUTE_ACCESSORS(UGASC_WeaponAttributeSet, WeaponManaRegenDelay)
-	
 	
 };

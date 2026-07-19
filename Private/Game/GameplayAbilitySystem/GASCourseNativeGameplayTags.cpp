@@ -57,6 +57,7 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_CardEnergyCostOverride, "Status.Card.CostO
 
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingDamage, "Data.IncomingDamage")
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingHealing, "Data.IncomingHealing")
+UE_DEFINE_GAMEPLAY_TAG(Data_IncomingWeaponMana, "Data.IncomingWeaponMana")
 UE_DEFINE_GAMEPLAY_TAG(Data_IncomingCardEnergyXP, "Data.IncomingCardEnergyXP")
 UE_DEFINE_GAMEPLAY_TAG(Data_CachedDamage, "Data.Damage.Cached")
 UE_DEFINE_GAMEPLAY_TAG(Data_DamageOverTime, "Data.Damage.OverTime")
@@ -67,12 +68,13 @@ UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DebugSimulated, "Data.Damage.Simulated",
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DamageCritical, "Data.Damage.Critical",
 	"Used to inform damage systems that the damage applied was a critical hit.")
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DamageResisted, "Data.Damage.Resisted",
-	"Used to inform damage systems that the damage applied was a critical hit.")
+	"Used to inform damage systems that the damage applied was resisted.")
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_HealingLifeSteal, "Data.Healing.LifeSteal",
 	"Used to inform damage systems that the healing applied was from life steal mechanics.")
-
 UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_CardCost, "Data.Card.Cost",
 	"Used to inform card cost execution class of the base cost of the activated card.")
+UE_DEFINE_GAMEPLAY_TAG_COMMENT(Data_DamageKilled, "Data.Damage.Killed",
+	"Used to inform damage systems that the damage applied killed the target.")	
 
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Root, "Damage.Type")
 UE_DEFINE_GAMEPLAY_TAG(DamageType_Physical, "Damage.Type.Physical")

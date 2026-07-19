@@ -3,7 +3,7 @@
 #pragma once
 
 #include "GameplayEffectTypes.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineTypes.h"
 #include "GASC_GameplayEffectContextTypes.generated.h"
 
 USTRUCT(BlueprintType)
@@ -12,7 +12,7 @@ struct FGASCourseGameplayEffectContext : public FGameplayEffectContext
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FDamageLogEntry DamageLogEntry;
+	FResourceLogEntry ResourceModLogEntry;
 	
 	virtual FGameplayEffectContext* Duplicate() const override
 	{

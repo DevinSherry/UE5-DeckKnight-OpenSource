@@ -8,10 +8,11 @@
 #include "Game/GameplayAbilitySystem/GASCourseGameplayEffect.h"
 #include "GASCourse/GASCourseCharacter.h"
 #include "Game/Systems/CardEnergy/GASCourseCardEnergyExecution.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "Game/GameplayAbilitySystem/GASCourseAbilitySystemComponent.h"
 #include "Game/GameplayAbilitySystem/GameplayEffect/GASC_GameplayEffectContextTypes.h"
-#include "Game/Systems/Damage/Debug/DamagePipelineDebugSubsystem.h"
+#include "Game/GameplayAbilitySystem/GameplayEffect/WeaponMana/GASC_WeaponManaInstantGameplayEffect.h"
+#include "Game/Systems/Damage/Debug/ResourcePipelineDebugSubsystem.h"
 
 UGASCourseHealthAttributeSet::UGASCourseHealthAttributeSet()
 {
@@ -96,8 +97,8 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 
 	const FGameplayEffectSpec& Spec                     = Data.EffectSpec;
 	const FGameplayEffectContextHandle& ContextHandle   = Spec.GetContext();
-	const FGameplayTagContainer& DynamicTags            = Spec.DynamicGrantedTags;
-	const FGameplayTagContainer& AssetTags              = Spec.GetDynamicAssetTags();
+	const FGameplayTagContainer& DynamicTags		    = Spec.DynamicGrantedTags;
+	FGameplayTagContainer AssetTags				     = Spec.GetDynamicAssetTags();
 	
 	// ---------------------------------------------------------------------
 	// Resolve target info once
@@ -184,8 +185,15 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 		const bool bWasAlive = TargetCharacter->IsCharacterAlive();
 		const float OldHealth = CurrentHealth.GetCurrentValue();
 		const float NewHealth = OldHealth - LocalDamage;
-
+		
 		SetCurrentHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
+		
+		// Add data tag for if the damage killed the target
+		const bool bDamageKilled       = NewHealth <= 0.0f && bWasAlive;
+		if (bDamageKilled)
+		{
+			AssetTags.AddTag(Data_DamageKilled);
+		}
 		
 		// 1. Get original context
 		FGameplayEffectContextHandle Original = Spec.GetEffectContext();
@@ -197,28 +205,28 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 		FGASCourseGameplayEffectContext* MutableContext =
 			static_cast<FGASCourseGameplayEffectContext*>(NewContext.Get());
 			
-		MutableContext->DamageLogEntry.FinalDamageValue = NewHealth >= GetMaxHealth() ? GetMaxHealth() - GetCurrentHealth() : LocalDamage;
-		MutableContext->DamageLogEntry.bIsCriticalHit = bIsCritical;
-		MutableContext->DamageLogEntry.bIsDamageEffect = true;
-		MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
-		MutableContext->DamageLogEntry.bDamageResisted = bDamageResisted;
-		MutableContext->DamageLogEntry.HitContextTagsContainer.AppendTags(Spec.GetDynamicAssetTags());
+		MutableContext->ResourceModLogEntry.FinalResourceValue = NewHealth >= GetMaxHealth() ? GetMaxHealth() - GetCurrentHealth() : LocalDamage;
+		MutableContext->ResourceModLogEntry.bIsCriticalHit = bIsCritical;
+		MutableContext->ResourceModLogEntry.bIsDamageEffect = true;
+		MutableContext->ResourceModLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
+		MutableContext->ResourceModLogEntry.bDamageResisted = bDamageResisted;
+		MutableContext->ResourceModLogEntry.HitContextTagsContainer.AppendTags(Spec.GetDynamicAssetTags());
 			
-		if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
+		if (UResourcePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UResourcePipelineDebugSubsystem>())
 		{
-			MutableContext->DamageLogEntry.DamageID = Debug->GenerateDebugDamageUniqueID();
-			Debug->LogDamageEvent(MutableContext->DamageLogEntry);
+			MutableContext->ResourceModLogEntry.ResourceID = Debug->GenerateDebugResourceModUniqueID();
+			Debug->LogResourceModEvent(MutableContext->ResourceModLogEntry);
 		}
 
 		// ---------------- Damage pipeline event ----------------
-		if (UGASC_DamagePipelineSubsystem* DPS = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		if (UGASC_ResourcePipelineSubsystem* DPS = World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 		{
-			FDamageModificationContext ModContext;
+			FResourceModificationContext ModContext;
 			ModContext.bCriticalModification     = bIsCritical;
 			ModContext.bModificationOverTime     = bIsDamageOverTime;
-			ModContext.bDamageResisted           = bDamageResisted;
-			ModContext.bDamageModificationKilled = (NewHealth <= 0.0f && bWasAlive);
-			ModContext.DamagePipelineType        = Damage;
+			ModContext.bResourceResisted           = bDamageResisted;
+			ModContext.bResourceModificationKilled = bDamageKilled;
+			ModContext.ResourcePipelineType        = Damage;
 			ModContext.DeltaValue                = LocalDamage;
 			ModContext.NewValue                  = NewHealth;
 			ModContext.DamageType                = DamageTypeTag;
@@ -241,6 +249,21 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 			// Delegates broadcast synchronously -> pointer to HitCtx is safe
 			DPS->Internal_BroadcastDamageApplied(ModContext);
 			DPS->Internal_BroadcastDamageReceived(ModContext);
+			
+			World->GetTimerManager().SetTimerForNextTick(
+	FTimerDelegate::CreateLambda(
+		[this, SourceASC, LocalDamage, AssetTags]()
+			{
+				FGameplayEffectContextHandle ContextHandle = SourceASC->MakeEffectContext();
+				ContextHandle.AddInstigator(SourceASC->GetOwnerActor(), SourceASC->GetOwnerActor());
+				FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(UGASC_WeaponManaInstantGameplayEffect::StaticClass(), 1.f, ContextHandle);
+								
+				FGameplayEffectSpec* WeaponManaSpec = SpecHandle.Data.Get();
+				WeaponManaSpec->SetSetByCallerMagnitude(Data_IncomingWeaponMana, LocalDamage);
+				WeaponManaSpec->AppendDynamicAssetTags(AssetTags);
+				
+				SourceASC->ApplyGameplayEffectSpecToSelf(*WeaponManaSpec);
+			}));
 		}
 
 		// ---------------- Death handling ----------------
@@ -308,25 +331,25 @@ void UGASCourseHealthAttributeSet::PostGameplayEffectExecute(const FGameplayEffe
 			FGASCourseGameplayEffectContext* MutableContext =
 				static_cast<FGASCourseGameplayEffectContext*>(NewContext.Get());
 			
-			MutableContext->DamageLogEntry.FinalDamageValue = TrueHealthDelta;
-			MutableContext->DamageLogEntry.bIsCriticalHit = bIsCritical;
-			MutableContext->DamageLogEntry.bIsDamageEffect = false;
-			MutableContext->DamageLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
-			MutableContext->DamageLogEntry.bLifeSteal = bLifeSteal;
+			MutableContext->ResourceModLogEntry.FinalResourceValue = TrueHealthDelta;
+			MutableContext->ResourceModLogEntry.bIsCriticalHit = bIsCritical;
+			MutableContext->ResourceModLogEntry.bIsDamageEffect = false;
+			MutableContext->ResourceModLogEntry.bIsOverTimeEffect = bIsDamageOverTime;
+			MutableContext->ResourceModLogEntry.bLifeSteal = bLifeSteal;
 			
-			if (UDamagePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UDamagePipelineDebugSubsystem>())
+			if (UResourcePipelineDebugSubsystem* Debug = GetWorld()->GetSubsystem<UResourcePipelineDebugSubsystem>())
 			{
-				MutableContext->DamageLogEntry.DamageID = Debug->GenerateDebugDamageUniqueID();
-				Debug->LogDamageEvent(MutableContext->DamageLogEntry);
+				MutableContext->ResourceModLogEntry.ResourceID = Debug->GenerateDebugResourceModUniqueID();
+				Debug->LogResourceModEvent(MutableContext->ResourceModLogEntry);
 			}
 			
-			if (UGASC_DamagePipelineSubsystem* DPS = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+			if (UGASC_ResourcePipelineSubsystem* DPS = World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 			{
-				FDamageModificationContext ModContext;
+				FResourceModificationContext ModContext;
 				ModContext.bCriticalModification     = bIsCritical;
 				ModContext.bModificationOverTime     = bIsDamageOverTime;
-				ModContext.bDamageModificationKilled = false;
-				ModContext.DamagePipelineType        = Healing;
+				ModContext.bResourceModificationKilled = false;
+				ModContext.ResourcePipelineType        = Healing;
 				ModContext.DeltaValue                = TrueHealthDelta;
 				ModContext.NewValue                  = NewHealth;
 				ModContext.DamageType              = DamageType_Healing;

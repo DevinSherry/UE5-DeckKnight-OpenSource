@@ -13,6 +13,7 @@
 #include "Game/Character/Components/InputBuffer/GASC_InputBufferComponent.h"
 #include "Game/GameplayAbilitySystem/GameplayAbilities/GASC_AbilityParamsObject.h"
 #include "Game/GameplayAbilitySystem/Tasks/DamagePipeline/GASC_OnHitEventTask.h"
+#include "Game/GameplayAbilitySystem/Tasks/DamagePipeline/GASC_OnDamageEventTask.h"
 #include "StructUtils/PropertyBag.h"
 
 DEFINE_LOG_CATEGORY(LOG_GASC_GameplayAbility);
@@ -207,16 +208,28 @@ void UGASCourseGameplayAbility::ActivateAbility(const FGameplayAbilitySpecHandle
 		}
 	}
 	
-	//Wait for On Hit Applied Task Event
-	UGASC_OnHitEventTask* WaitForOnHitAppliedEvent = UGASC_OnHitEventTask::WaitOnHitEvent(this, GetAvatarActorFromActorInfo(), EHitEventType::OnHitApplied);
-	WaitForOnHitAppliedEvent->OnHitDelegate.AddDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
-	WaitForOnHitAppliedEvent->ReadyForActivation();
+	if (bListenForOnHitAppliedEvent)
+	{
+		//Wait for On Hit Applied Task Event
+		UGASC_OnHitEventTask* WaitForOnHitAppliedEvent = UGASC_OnHitEventTask::WaitOnHitEvent(this, GetAvatarActorFromActorInfo(), EHitEventType::OnHitApplied);
+		WaitForOnHitAppliedEvent->OnHitDelegate.AddDynamic(this, &UGASCourseGameplayAbility::OnHitApplied);
+		WaitForOnHitAppliedEvent->ReadyForActivation();
+	}
+
+	if (bListenForOnHitReceivedEvent)
+	{
+		//Wait for On Hit Received Task Event
+		UGASC_OnHitEventTask* WaitForOnHitReceivedEvent = UGASC_OnHitEventTask::WaitOnHitEvent(this, GetAvatarActorFromActorInfo(), EHitEventType::OnHitReceived);
+		WaitForOnHitReceivedEvent->OnHitDelegate.AddDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
+		WaitForOnHitReceivedEvent->ReadyForActivation();
+	}
 	
-	//Wait for On Hit Received Task Event
-	UGASC_OnHitEventTask* WaitForOnHitReceivedEvent = UGASC_OnHitEventTask::WaitOnHitEvent(this, GetAvatarActorFromActorInfo(), EHitEventType::OnHitReceived);
-	WaitForOnHitReceivedEvent->OnHitDelegate.AddDynamic(this, &UGASCourseGameplayAbility::OnHitReceived);
-	WaitForOnHitReceivedEvent->ReadyForActivation();
-	
+	if (bListenForOnDamageAppliedEvent)
+	{
+		UGASC_OnDamageEventTask* WaitForOnDamageAppliedEvent = UGASC_OnDamageEventTask::WaitOnDamageEvent(this, GetAvatarActorFromActorInfo(), EOnDamageEventType::OnDamageApplied);
+		WaitForOnDamageAppliedEvent->OnDamageEvent.AddDynamic(this, &UGASCourseGameplayAbility::OnDamageApplied);
+		WaitForOnDamageAppliedEvent->ReadyForActivation();
+	}
 	
 	CachedInputDirection = GetInputDirection();
 	Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
@@ -798,5 +811,13 @@ void UGASCourseGameplayAbility::OnHitReceived(const FHitContext& HitContext)
 	if (HitContext.HitTarget.Get() == GetAvatarActorFromActorInfo())
 	{
 		OnHitReceived_Event(HitContext);
+	}
+}
+
+void UGASCourseGameplayAbility::OnDamageApplied(const FResourceModificationContext& ResourceModificationContext)
+{
+	if (ResourceModificationContext.HitContext.HitInstigator == GetAvatarActorFromActorInfo())
+	{
+		OnDamageApplied_Event(ResourceModificationContext);
 	}
 }

@@ -5,7 +5,7 @@
 #include "Abilities/GameplayAbility.h"
 //#include "Game/Character/Player/GASCoursePlayerCharacter.h"
 //#include "Game/Character/Player/GASCoursePlayerController.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "GASCourseGameplayAbility.generated.h"
 
 class AGASCoursePlayerCharacter;
@@ -441,18 +441,46 @@ protected:
 	 */
 	UPROPERTY(BlueprintReadOnly, Transient, Category="GASCourse|Ability|Input")
 	FVector CachedInputDirection = FVector::ZeroVector;
+	
+	/** 
+	 * When enabled, OnHitApplied event will be broadcasted when a hit is applied by the ability's target.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GASCourse|Ability|Damage Pipeline")
+	bool bListenForOnHitAppliedEvent = false;
 
 	UFUNCTION()
 	void OnHitApplied(const FHitContext& HitContext);
+	
+	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
+	void OnHitApplied_Event(const FHitContext& HitContext);
+
+	/**
+	 * bListenForOnHitReceivedEvent
+	 *
+	 *	Indicates whether the ability should listen for hit received events in the damage pipeline.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GASCourse|Ability|Damage Pipeline")
+	bool bListenForOnHitReceivedEvent = false;
 
 	UFUNCTION()
 	void OnHitReceived(const FHitContext& HitContext);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
-	void OnHitApplied_Event(const FHitContext& HitContext);
-
-	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
 	void OnHitReceived_Event(const FHitContext& HitContext);
+
+	/**
+	 * bListenForOnDamageAppliedEvent
+	 *
+	 *	Indicates whether the ability listens for the event when damage is applied.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="GASCourse|Ability|Damage Pipeline")
+	bool bListenForOnDamageAppliedEvent = false;
+	
+	UFUNCTION()
+	void OnDamageApplied(const FResourceModificationContext& ResourceModificationContext);
+	
+	UFUNCTION(BlueprintImplementableEvent, Category = "GASCourse|Ability|Damage Pipeline")
+	void OnDamageApplied_Event(const FResourceModificationContext& ResourceModificationContext);
 	
 private:
 	

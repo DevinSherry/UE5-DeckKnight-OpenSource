@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Abilities/Tasks/AbilityTask.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "GASC_OnHitEventTask.generated.h"
 
 // Public delegate exposed to abilities / blueprints

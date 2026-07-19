@@ -36,11 +36,11 @@ public:
 
 	/** Called by the damage pipeline subsystem */
 	UFUNCTION()
-	void OnDamageApplied_Event(const FDamageModificationContext& DamageContext);
+	void OnDamageApplied_Event(const FResourceModificationContext& DamageContext);
 
 	/** Called by the damage pipeline subsystem */
 	UFUNCTION()
-	void OnHealingReceived_Event(const FDamageModificationContext& HealingContext);
+	void OnHealingReceived_Event(const FResourceModificationContext& HealingContext);
 
 protected:
 
@@ -71,10 +71,10 @@ protected:
 	 * ============================ */
 
 	/** Adds a normal hit damage/heal number using the provided context */
-	void AddHitDamageTextFromContext(const FDamageModificationContext& Context);
+	void AddHitDamageTextFromContext(const FResourceModificationContext& Context);
 
 	/** Adds a critical hit damage/heal number using the provided context */
-	void AddCriticalHitDamageTextFromContext(const FDamageModificationContext& Context);
+	void AddCriticalHitDamageTextFromContext(const FResourceModificationContext& Context);
 
 	/** Called by damage number widgets when their animation finishes */
 	UFUNCTION()

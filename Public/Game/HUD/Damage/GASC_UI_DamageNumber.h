@@ -5,7 +5,7 @@
 #include "Components/Image.h"
 #include "Blueprint/UserWidget.h"
 #include "Game/Systems/Damage/Data/GASCourseDamageTypeUIData.h"
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineTypes.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineTypes.h"
 #include "GASC_UI_DamageNumber.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDamageNumberRemoved, UGASC_UI_DamageNumber*, DamageNumber);
@@ -40,7 +40,7 @@ public:
 	class UImage* DamageResistanceIcon;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
-	FDamageModificationContext DamageModContext;
+	FResourceModificationContext DamageModContext;
 
 	UPROPERTY(BlueprintReadOnly, Category = "DamageNumber", meta=(ExposeOnSpawn=true))
 	bool bIsCriticalHit = false;

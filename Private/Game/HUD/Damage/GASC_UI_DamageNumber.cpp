@@ -33,8 +33,8 @@ void UGASC_UI_DamageNumber::SetDamageTextValue_Implementation()
 	}
 
 	// Pipeline type (Damage vs Healing) now comes from the unified damage pipeline
-	const bool bIsHealing = (DamageModContext.DamagePipelineType == EGASC_DamagePipelineType::Healing);
-	const bool bDamageResisted = DamageModContext.bDamageResisted;
+	const bool bIsHealing = (DamageModContext.ResourcePipelineType == EGASC_ResourcePipelineType::Healing);
+	const bool bDamageResisted = DamageModContext.bResourceResisted;
 	const float RawValue   = DamageModContext.DeltaValue;
 	const int32 Rounded    = FMath::RoundToInt(RawValue);
 	if (Rounded == 0 && !bDamageResisted)

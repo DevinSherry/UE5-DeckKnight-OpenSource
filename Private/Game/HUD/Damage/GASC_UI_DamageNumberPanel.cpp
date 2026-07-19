@@ -1,14 +1,11 @@
 #include "Game/HUD/Damage/GASC_UI_DamageNumberPanel.h"
-
 #include "Blueprint/SlateBlueprintLibrary.h"
 #include "Blueprint/WidgetLayoutLibrary.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Kismet/GameplayStatics.h"
-
-#include "Game/Systems/Damage/Pipeline/GASC_DamagePipelineSubsystem.h"
+#include "Game/Systems/Damage/Pipeline/GASC_ResourcePipelineSubsystem.h"
 #include "Game/Systems/Damage/Data/GASCourseDamageTypeUIData.h"
-
 #include "Engine/AssetManager.h"
 #include "Engine/StreamableManager.h"
 #include "Game/DeveloperSettings/UGASC_AbilitySystemSettings.h"
@@ -26,7 +23,7 @@ void UGASC_UI_DamageNumberPanel::NativeConstruct()
 	// Register damage listeners
 	if (UWorld* World = GetWorld())
 	{
-		if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		if (UGASC_ResourcePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 		{
 			FOnDamageAppliedNative DamageDelegate;
 			DamageDelegate.BindUObject(this, &UGASC_UI_DamageNumberPanel::OnDamageApplied_Event);
@@ -71,9 +68,10 @@ void UGASC_UI_DamageNumberPanel::NativeDestruct()
 {
 	if (UWorld* World = GetWorld())
 	{
-		if (UGASC_DamagePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_DamagePipelineSubsystem>())
+		if (UGASC_ResourcePipelineSubsystem* Subsys = World->GetSubsystem<UGASC_ResourcePipelineSubsystem>())
 		{
 			Subsys->UnregisterNativeDamageListener(this);
+			Subsys->UnregisterNativeHealingListener(this);
 		}
 	}
 
@@ -102,7 +100,7 @@ void UGASC_UI_DamageNumberPanel::NativeTick(const FGeometry& MyGeometry, float I
 			continue;
 		}
 
-		const FDamageModificationContext& Context = DamageNumber->DamageModContext;
+		const FResourceModificationContext& Context = DamageNumber->DamageModContext;
 		const AActor* Target = Context.HitContext.HitTarget.Get();
 		if (!IsValid(Target))
 		{
@@ -213,7 +211,7 @@ void UGASC_UI_DamageNumberPanel::ReturnToDamageNumberPool(UGASC_UI_DamageNumber*
 		return;
 
 	DamageNumber->SetVisibility(ESlateVisibility::Collapsed);
-	DamageNumber->DamageModContext = FDamageModificationContext();
+	DamageNumber->DamageModContext = FResourceModificationContext();
 
 	DamageNumberWorldPositions.Remove(DamageNumber);
 	FreeDamageNumbers.Add(DamageNumber);
@@ -229,12 +227,12 @@ void UGASC_UI_DamageNumberPanel::OnDamageNumberRemoved(UGASC_UI_DamageNumber* Da
  * ============================ */
 
 void UGASC_UI_DamageNumberPanel::OnDamageApplied_Event(
-	const FDamageModificationContext& DamageContext)
+	const FResourceModificationContext& DamageContext)
 {
 	if (!DamageContext.HitContext.HitTarget.IsValid())
 		return;
 
-	const FDamageModificationContext Captured = DamageContext;
+	const FResourceModificationContext Captured = DamageContext;
 
 	AsyncTask(ENamedThreads::GameThread, [this, Captured]()
 	{
@@ -251,12 +249,12 @@ void UGASC_UI_DamageNumberPanel::OnDamageApplied_Event(
 }
 
 void UGASC_UI_DamageNumberPanel::OnHealingReceived_Event(
-	const FDamageModificationContext& HealingContext)
+	const FResourceModificationContext& HealingContext)
 {
 	if (!HealingContext.HitContext.HitTarget.IsValid())
 		return;
 
-	const FDamageModificationContext Captured = HealingContext;
+	const FResourceModificationContext Captured = HealingContext;
 
 	AsyncTask(ENamedThreads::GameThread, [this, Captured]()
 	{
@@ -277,13 +275,13 @@ void UGASC_UI_DamageNumberPanel::OnHealingReceived_Event(
  * ============================ */
 
 void UGASC_UI_DamageNumberPanel::AddHitDamageTextFromContext(
-	const FDamageModificationContext& Context)
+	const FResourceModificationContext& Context)
 {
 	if (!Context.HitContext.HitTarget.IsValid())
 		return;
 
 	//TODO check for resistance as well
-	if (FMath::RoundToInt(Context.DeltaValue) == 0 && !Context.bDamageResisted)
+	if (FMath::RoundToInt(Context.DeltaValue) == 0 && !Context.bResourceResisted)
 		return;
 
 	UGASC_UI_DamageNumber* W = GetPooledDamageNumber();
@@ -308,7 +306,7 @@ void UGASC_UI_DamageNumberPanel::AddHitDamageTextFromContext(
 }
 
 void UGASC_UI_DamageNumberPanel::AddCriticalHitDamageTextFromContext(
-	const FDamageModificationContext& Context)
+	const FResourceModificationContext& Context)
 {
 	if (!Context.HitContext.HitTarget.IsValid())
 		return;
