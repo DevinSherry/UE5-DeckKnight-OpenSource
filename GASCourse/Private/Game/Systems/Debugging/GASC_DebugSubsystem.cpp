@@ -1,0 +1,119 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#include "Game/Systems/Debugging/GASC_DebugSubsystem.h"
+#if !UE_BUILD_SHIPPING
+#include "imgui.h"
+#include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
+#include "Game/Systems/Debugging/Panels/FGASCAttributesPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_ActiveCardEnergyXPHistoryPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_CardHandUILayoutDebug.h"
+#include "Game/Systems/Debugging/Panels/FGASC_PlayerDeckManagerPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_ShakeCharacterDebugPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_MeleeTraceDebugPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_TargetingDebugPanel.h"
+#include "Game/Systems/Debugging/Panels/FGASC_WaveManagerPanel.h"
+#include "Game/Systems/Debugging/Panels/GASCResourceModifcationEventsPanel.h"
+
+void UGASC_DebugSubsystem::Tick(float DeltaTime)
+{
+	if (UWorld* World = GetWorld())
+	{
+		CacheAllPawns(World);
+		DebugHub.UpdateCachedPawns(CachedPawns);
+		DrawImGui();
+	}
+}
+
+TStatId UGASC_DebugSubsystem::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(UGASC_DebugSubsystem, STATGROUP_Tickables);
+}
+
+void UGASC_DebugSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	DebugHub.RegisterDebugPanel(MakeShared<FGASCAttributesPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_ActiveCardEnergyXPHistoryPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_WaveManagerPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASCResourceModifcationEventsPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_CardHandUILayoutDebug>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_PlayerDeckManagerPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_ShakeCharacterDebugPanel>());
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_MeleeTraceDebugPanel>(GetWorld()));
+	DebugHub.RegisterDebugPanel(MakeShared<FGASC_TargetingDebugPanel>(GetGameInstance()));
+}
+
+void UGASC_DebugSubsystem::Deinitialize()
+{
+	DebugHub.ResetDebugPanels();
+	Super::Deinitialize();
+}
+
+void UGASC_DebugSubsystem::ToggleGameplayDebugHUD(bool bInOpen)
+{
+	DebugHub.ShowDebugHub(bInOpen);
+}
+
+bool UGASC_DebugSubsystem::IsDebugOpen() const
+{
+	return DebugHub.IsDebugHubOpen();
+}
+
+void UGASC_DebugSubsystem::DrawImGui()
+{
+	if (!ImGui::GetCurrentContext())
+	{
+		return;
+	}
+	DebugHub.DrawDebugHub();
+}
+
+void UGASC_DebugSubsystem::CacheAllPawns(UWorld* World)
+{
+	CachedPawns.Empty();
+
+	for (TActorIterator<APawn> It(World); It; ++It)
+	{
+		APawn* Pawn = *It;
+		if (IsValid(Pawn))
+		{
+			CachedPawns.Add(Pawn);
+		}
+	}
+
+	// Clean up history for destroyed actors
+	TArray<AActor*> ActorsToRemove;
+	for (auto& Pair : AttributeHistory)
+	{
+		if (!IsValid(Pair.Key))
+		{
+			ActorsToRemove.Add(Pair.Key);
+		}
+	}
+    
+	for (AActor* Actor : ActorsToRemove)
+	{
+		AttributeHistory.Remove(Actor);
+	}
+}
+
+#else
+void UGASC_DebugSubsystem::Tick(float) {}
+TStatId UGASC_DebugSubsystem::GetStatId() const { return TStatId(); }
+void UGASC_DebugSubsystem::Initialize(FSubsystemCollectionBase& Collection) { Super::Initialize(Collection); }
+void UGASC_DebugSubsystem::Deinitialize() { Super::Deinitialize(); }
+void UGASC_DebugSubsystem::ToggleGameplayDebugHUD(bool) {}
+bool UGASC_DebugSubsystem::IsDebugOpen() const { return false; }
+void UGASC_DebugSubsystem::DrawImGui() {}
+void UGASC_DebugSubsystem::CacheAllPawns(UWorld*) {}
+#endif
+
+bool UGASC_DebugSubsystem::ShouldCreateSubsystem(UObject* Outer) const
+{
+#if UE_BUILD_SHIPPING
+ return false;
+#else
+ return Super::ShouldCreateSubsystem(Outer);
+#endif
+}
