@@ -1,0 +1,15 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1",
+  "FriendlyName": "Montage Retiming",
+  "Description": "Opt-in section retiming for animation iteration in unmodified Unreal Engine 5.7.",
+  "Category": "Animation",
+  "EnabledByDefault": true,
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Modules": [
+    { "Name": "MontageRetiming", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "MontageRetimingEditor", "Type": "Editor", "LoadingPhase": "PostEngineInit" }
+  ]
+}
