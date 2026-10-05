@@ -16,10 +16,16 @@ class FMontageRetimingEditorModule : public IModuleInterface
 {
     FDelegateHandle ExtenderHandle;
     FTSTicker::FDelegateHandle PreviewTicker;
+    FDelegateHandle ObjectModifiedHandle;
 public:
     virtual bool SupportsDynamicReloading() override { return false; }
     virtual void StartupModule() override
     {
+        ObjectModifiedHandle = FCoreUObjectDelegates::OnObjectModified.AddLambda([](UObject* Object)
+        {
+            for (TObjectIterator<UMontageRetimingPreviewInstance> It; It; ++It)
+                if (IsValid(*It)) It->HandleExternalEdit(Object);
+        });
         PreviewTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)
         {
             for (TObjectIterator<UDebugSkelMeshComponent> It; It; ++It)
@@ -64,6 +70,7 @@ public:
     }
     virtual void ShutdownModule() override
     {
+        FCoreUObjectDelegates::OnObjectModified.Remove(ObjectModifiedHandle);
         FTSTicker::GetCoreTicker().RemoveTicker(PreviewTicker);
         if (auto* Module = FModuleManager::GetModulePtr<IAnimationEditorModule>("AnimationEditor"))
             Module->GetAllAnimationEditorToolbarExtenders().RemoveAll([this](const auto& D) { return D.GetHandle() == ExtenderHandle; });

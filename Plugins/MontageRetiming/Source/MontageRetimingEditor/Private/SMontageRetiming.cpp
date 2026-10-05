@@ -11,6 +11,7 @@
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -72,6 +73,8 @@ void SMontageRetiming::Construct(const FArguments& Args)
         ]
         + SVerticalBox::Slot().FillHeight(1).Padding(8)
         [ SNew(SScrollBox) + SScrollBox::Slot()[ SAssignNew(RowsBox, SVerticalBox) ] ]
+        + SVerticalBox::Slot().AutoHeight().Padding(8)
+        [ SNew(STextBlock).Text(LOCTEXT("PreviewHelp", "Changing Target frames restarts that section's preview.")) ]
     ];
     Refresh();
 }
@@ -125,8 +128,20 @@ void SMontageRetiming::Rebuild()
                 + SHorizontalBox::Slot().AutoWidth().Padding(0,0,8,0)
                 [ SNew(SCheckBox).IsChecked_Lambda([this, Row] { return Selected.Contains(Row->SectionIndex) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
                     .OnCheckStateChanged_Lambda([this, Row](ECheckBoxState S) { if (S == ECheckBoxState::Checked) Selected.Add(Row->SectionIndex); else Selected.Remove(Row->SectionIndex); }) ]
-                + SHorizontalBox::Slot().FillWidth(1)
-                [ SNew(STextBlock).Text_Lambda([Row] { return FText::FromString(FString::Printf(TEXT("%s\nNext: %s%s"), *Row->Name.ToString(), *Row->Next.ToString(), Row->bLoop ? TEXT(" (loop path)") : TEXT(""))); }) ]
+                + SHorizontalBox::Slot().AutoWidth()
+                [ SNew(SBox).WidthOverride(120)
+                    [ SNew(STextBlock).Text_Lambda([Row] { return FText::FromString(FString::Printf(TEXT("%s\nNext: %s%s"), *Row->Name.ToString(), *Row->Next.ToString(), Row->bLoop ? TEXT(" (loop path)") : TEXT(""))); }) ] ]
+                + SHorizontalBox::Slot().AutoWidth().Padding(4,0).VAlign(VAlign_Center)
+                [ SNew(SButton)
+                    .Text_Lambda([this, Row] { auto* P = GetPreview(); return P && P->GetLoopingSection() == Row->Name ? LOCTEXT("Looping", "Looping") : LOCTEXT("Loop", "Loop"); })
+                    .ButtonColorAndOpacity_Lambda([this, Row] { auto* P = GetPreview(); return P && P->GetLoopingSection() == Row->Name ? FLinearColor(0.15f,0.45f,0.8f) : FLinearColor::White; })
+                    .ToolTipText(LOCTEXT("LoopHelp", "Toggle preview looping for only this section. Authored section links are preserved."))
+                    .OnClicked_Lambda([this, Row] { ToggleSectionLoop(Row->SectionIndex); return FReply::Handled(); }) ]
+                + SHorizontalBox::Slot().AutoWidth().Padding(4,0).VAlign(VAlign_Center)
+                [ SNew(SButton).Text(LOCTEXT("Jump", "Jump to section"))
+                    .ToolTipText(LOCTEXT("JumpHelp", "Start preview playback at this section and exit section-only looping."))
+                    .OnClicked_Lambda([this, Row] { EnsurePreview(); if (auto* P = GetPreview()) P->PreviewSection(Row->SectionIndex, false); return FReply::Handled(); }) ]
+                + SHorizontalBox::Slot().FillWidth(1)[ SNew(SSpacer) ]
                 + SHorizontalBox::Slot().AutoWidth().Padding(8,0)
                 [ SNew(STextBlock).Text_Lambda([Row] { return FText::FromString(FString::Printf(TEXT("Original: %.3f frames\nSource: %.3f fps"), Row->OriginalFrames, Row->FramesPerSecond)); }) ]
                 + SHorizontalBox::Slot().AutoWidth().Padding(8,0)
@@ -171,6 +186,7 @@ void SMontageRetiming::Edit(TFunctionRef<void(UAnimMontage&)> Change, const FTex
 {
     auto* Montage = GetMontage();
     if (!Montage) return;
+    const auto Before = MontageRetiming::Describe(*Montage);
     if (bValidate)
     {
         FString Errors;
@@ -180,15 +196,37 @@ void SMontageRetiming::Edit(TFunctionRef<void(UAnimMontage&)> Change, const FTex
     }
     TUniquePtr<FScopedTransaction> Transaction;
     if (!LiveTransaction) Transaction = MakeUnique<FScopedTransaction>(Description);
+    auto* Preview = GetPreview();
+    bool bUnusedGuard = false;
+    TGuardValue<bool> EditingGuard(Preview ? Preview->bEditingRetiming : bUnusedGuard, true);
     Montage->Modify();
     Change(*Montage);
     Montage->MarkPackageDirty();
     Refresh();
+    // All target-changing actions (including batch/reset) share preview restart
+    // behavior. Prefer an affected looping section; otherwise preview the first
+    // changed section in timeline order. Restart at most once per action.
+    int32 RestartIndex = INDEX_NONE;
+    for (const auto& Row : MontageRetiming::Describe(*Montage))
+    {
+        const auto* Old = Before.FindByPredicate([&Row](const auto& R) { return R.SectionIndex == Row.SectionIndex; });
+        if (Old && !FMath::IsNearlyEqual(Old->TargetSeconds, Row.TargetSeconds))
+        {
+            if (RestartIndex == INDEX_NONE) RestartIndex = Row.SectionIndex;
+            if (Preview && Preview->GetLoopingSection() == Row.Name) { RestartIndex = Row.SectionIndex; break; }
+        }
+    }
+    if (RestartIndex != INDEX_NONE) PreviewSection(RestartIndex);
 }
 
 void SMontageRetiming::SetTarget(int32 Index, double Frames)
 {
     if (!FMath::IsFinite(Frames) || Frames < 1) return;
+    auto* Montage = GetMontage();
+    if (!Montage) return;
+    const auto Before = MontageRetiming::Describe(*Montage);
+    const auto* Previous = Before.FindByPredicate([Index](const auto& R) { return R.SectionIndex == Index; });
+    if (!Previous || !Previous->Error.IsEmpty() || FMath::IsNearlyEqual(Previous->TargetFrames, FMath::RoundToDouble(Frames))) return;
     Edit([Index, Frames](UAnimMontage& M) {
         for (const auto& Row : MontageRetiming::Describe(M)) if (Row.SectionIndex == Index)
         {
@@ -235,6 +273,32 @@ void SMontageRetiming::EnsurePreview()
     if (!Pinned || !Montage) return;
     auto* Mesh = Pinned->GetPersonaToolkit()->GetPreviewMeshComponent();
     if (Mesh) UMontageRetimingPreviewInstance::Install(*Mesh);
+}
+
+UMontageRetimingPreviewInstance* SMontageRetiming::GetPreview() const
+{
+    const auto Pinned = Editor.Pin();
+    auto* Mesh = Pinned ? Pinned->GetPersonaToolkit()->GetPreviewMeshComponent() : nullptr;
+    return Mesh && Mesh->IsPreviewOn() ? Cast<UMontageRetimingPreviewInstance>(Mesh->PreviewInstance) : nullptr;
+}
+
+void SMontageRetiming::PreviewSection(int32 Index)
+{
+    EnsurePreview();
+    auto* M = GetMontage();
+    auto* P = GetPreview();
+    if (M && P && M->CompositeSections.IsValidIndex(Index))
+        P->PreviewSection(Index, P->GetLoopingSection() == M->GetSectionName(Index));
+}
+
+void SMontageRetiming::ToggleSectionLoop(int32 Index)
+{
+    EnsurePreview();
+    auto* M = GetMontage();
+    auto* P = GetPreview();
+    if (!M || !P || !M->CompositeSections.IsValidIndex(Index)) return;
+    if (P->GetLoopingSection() == M->GetSectionName(Index)) P->ClearSectionLoop(true);
+    else P->PreviewSection(Index, true);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -26,6 +26,9 @@ private:
     void Reset(int32 Index);
     void Batch(bool bScale);
     void EnsurePreview();
+    class UMontageRetimingPreviewInstance* GetPreview() const;
+    void PreviewSection(int32 Index);
+    void ToggleSectionLoop(int32 Index);
     static UMontageRetimingSection* GetOrAddSection(UAnimMontage&, int32);
     static void ResetSection(UAnimMontage&, int32);
     TWeakPtr<IAnimationEditor> Editor;

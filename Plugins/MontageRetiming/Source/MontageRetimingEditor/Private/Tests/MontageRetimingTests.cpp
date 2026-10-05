@@ -3,6 +3,8 @@
 #if WITH_DEV_AUTOMATION_TESTS
 #include "MontageRetimingData.h"
 #include "MontageRetimingAnimInstance.h"
+#include "MontageRetimingPreviewInstance.h"
+#include "Animation/AnimSingleNodeInstanceProxy.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimData/IAnimationDataController.h"
@@ -196,6 +198,112 @@ bool FRetimingCookedDataTest::RunTest(const FString&)
     F.Montage->CompositeSections[1].SetTime(0);
     F.Settings->RefreshCookedData();
     TestFalse(TEXT("Invalid boundaries are rejected before cooking"), F.Settings->bValidForCookedPlayback);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRetimingSectionPreviewTest, "DeckKnight.MontageRetiming.Preview.SectionControls", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRetimingSectionPreviewTest::RunTest(const FString&)
+{
+    FRetimingFixture F;
+    TStrongObjectPtr<UMontageRetimingPreviewInstance> Preview{NewObject<UMontageRetimingPreviewInstance>(F.Mesh.Get())};
+    F.Mesh->AnimScriptInstance = Preview.Get();
+    Preview->InitializeAnimation();
+    Preview->CurrentSkeleton = F.Skeleton.Get();
+    Preview->CurrentAsset = F.Montage.Get();
+    F.Mesh->AnimScriptInstance = Preview.Get();
+    Preview->SetPlayRate(1.f);
+    Preview->SetLooping(false);
+    auto& Proxy = Preview->GetProxyOnGameThread<FAnimSingleNodeInstanceProxy>();
+    Proxy.RegisterSlotNodeWithAnimInstance(TEXT("DefaultSlot"));
+    Preview->SetMontagePreviewSlot(TEXT("DefaultSlot"));
+    auto CheckPreviewPoseInput = [this, &Proxy]()
+    {
+        float SlotWeight = 0, SourceWeight = 0, TotalWeight = 0;
+        Proxy.GetSlotWeight(TEXT("DefaultSlot"), SlotWeight, SourceWeight, TotalWeight);
+        TestTrue(TEXT("Restart supplies nonzero animation slot weight instead of reference pose"), SlotWeight > ZERO_ANIMWEIGHT_THRESH);
+    };
+    Preview->PreviewSection(0, true);
+    CheckPreviewPoseInput();
+    auto* MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    if (!TestNotNull(TEXT("Loop starts preview montage"), MI)) return false;
+    TestEqual(TEXT("Only chosen section links to itself"), MI->GetNextSectionID(0), 0);
+    Preview->Montage_Advance(2.5f);
+    TestTrue(TEXT("Retimed A loops without playing linked B"), FMath::IsNearlyEqual(MI->GetPosition(), 0.25f, 0.001f));
+    TestEqual(TEXT("Saved next-section link is untouched"), F.Montage->CompositeSections[0].NextSectionName, FName(TEXT("B")));
+    Preview->PreviewSection(1, true);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    TestEqual(TEXT("Selecting another loop replaces active loop row"), Preview->GetLoopingSection(), FName(TEXT("B")));
+    TestEqual(TEXT("Previous row no longer loops itself"), MI->GetNextSectionID(0), 1);
+    TestEqual(TEXT("Only replacement row loops itself"), MI->GetNextSectionID(1), 1);
+    Preview->PreviewSection(0, true);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    Preview->ClearSectionLoop();
+    TestEqual(TEXT("Disabling loop restores authored A to B routing"), MI->GetNextSectionID(0), 1);
+    Preview->PreviewSection(1, true);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    TestEqual(TEXT("Loop can move to final section"), MI->GetNextSectionID(1), 1);
+    Preview->Montage_Advance(0.625f);
+    TestTrue(TEXT("Final section loops at its retimed speed"), FMath::IsNearlyEqual(MI->GetPosition(), 1.25f, 0.001f));
+    F.Target(1, 1.0);
+    Preview->PreviewSection(1, true);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    TestEqual(TEXT("Restart returns to edited section start"), MI->GetPosition(), 1.f);
+    Preview->Montage_Advance(0.25f);
+    TestTrue(TEXT("Restarted preview uses new target duration"), FMath::IsNearlyEqual(MI->GetPosition(), 1.25f, 0.001f));
+    Preview->PreviewSection(0, false);
+    CheckPreviewPoseInput();
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    TestEqual(TEXT("Jump starts exactly at requested section"), MI->GetPosition(), 0.f);
+    TestTrue(TEXT("Jump exits section-only loop"), Preview->GetLoopingSection().IsNone());
+    TestEqual(TEXT("Jump to another row removes previous row's loop"), MI->GetNextSectionID(1), INDEX_NONE);
+    TestEqual(TEXT("Jump restores normal section chain"), MI->GetNextSectionID(0), 1);
+    Preview->Montage_Advance(2.25f);
+    TestTrue(TEXT("Normal preview follows link after jump"), FMath::IsNearlyEqual(MI->GetPosition(), 1.25f, 0.001f));
+    Preview->PreviewSection(0, true);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    Preview->SetPosition(0.4f, false);
+    Preview->Montage_Advance(0.f);
+    TestTrue(TEXT("Manual scrub clears tool loop"), Preview->GetLoopingSection().IsNone());
+    TestEqual(TEXT("Manual scrub restores authored section routing"), MI->GetNextSectionID(0), 1);
+    Preview->PreviewSection(0, true);
+    Preview->HandleExternalEdit(F.Montage.Get());
+    TestTrue(TEXT("Montage notify edit clears tool loop"), Preview->GetLoopingSection().IsNone());
+    Preview->PreviewSection(0, true);
+    Preview->HandleExternalEdit(F.Sequence.Get());
+    TestTrue(TEXT("Source animation edit clears tool loop"), Preview->GetLoopingSection().IsNone());
+    Preview->PreviewSection(0, true);
+    Preview->bEditingRetiming = true;
+    Preview->HandleExternalEdit(F.Montage.Get());
+    Preview->bEditingRetiming = false;
+    TestEqual(TEXT("Tool's own target edit preserves tool loop"), Preview->GetLoopingSection(), FName(TEXT("A")));
+    F.Montage->CompositeSections[1].NextSectionName = TEXT("B");
+    Preview->ClearSectionLoop();
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    TestEqual(TEXT("Authored explicit loop remains after tool loop clears"), MI->GetNextSectionID(1), 1);
+    F.Montage->CompositeSections[1].NextSectionName = NAME_None;
+    F.Montage->bEnableAutoBlendOut = true;
+    // Reproduce a stale/cleared proxy looping flag, as left by manual transport.
+    Preview->SetLooping(false);
+    Preview->PreviewSection(0, true);
+    Preview->ClearSectionLoop(true);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    TestTrue(TEXT("Loop toggle off resumes normal repeating preview even with prior flag false"), Preview->IsLooping());
+    TestEqual(TEXT("Full preview loops from final section to first"), MI->GetNextSectionID(1), 0);
+    Preview->Montage_Advance(3.25f);
+    TestTrue(TEXT("Full preview continues beyond montage end after toggle off"), MI->IsPlaying());
+    TestTrue(TEXT("Loop-off playback retains pose weight"), MI->GetWeight() > ZERO_ANIMWEIGHT_THRESH);
+    for (int32 Cycle = 0; Cycle < 3; ++Cycle)
+    {
+        Preview->Montage_Advance(3.f);
+        TestTrue(TEXT("Normal preview remains playing across repeated complete cycles"), MI->IsPlaying());
+        TestTrue(TEXT("Normal preview wraps instead of parking on final frame"), MI->GetPosition() < 1.9f);
+    }
+    Preview->PreviewSection(0, true);
+    Preview->ClearSectionLoop();
+    TestFalse(TEXT("Manual cancellation does not restore implicit preview loop"), Preview->IsLooping());
+    Preview->Montage_Advance(5.f);
+    MI = Preview->GetActiveInstanceForMontage(F.Montage.Get());
+    if (TestNotNull(TEXT("Non-looping preview retains montage for final pose"), MI))
+        TestTrue(TEXT("Final preview pose retains animation weight with asset blend-out enabled"), MI->GetWeight() > ZERO_ANIMWEIGHT_THRESH);
     return true;
 }
 #endif
